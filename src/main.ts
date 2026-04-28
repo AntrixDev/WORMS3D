@@ -101,3 +101,21 @@ const bindGroup = root.createBindGroup(layout, { //group for binding the camera 
   camera: cameraBuffer,
   transform: transformBuffer,
 });
+
+//off-screen surface that tracks how far a pixel is from the camera
+
+const depthTexture = root 
+  .createTexture({
+    size: [canvas.width, canvas.height], //same size as the canvas
+    format: "depth24plus", //24 bits of precision 
+    sampleCount: 4, //a pixel is sampled 4 times
+  })
+  .$usage("render"); //output storage for a draw
+
+const msaaTexture = root
+  .createTexture({
+    size: [canvas.width, canvas.height],
+    format: presentationFormat, //same pixel format as the screen
+    sampleCount: 4,
+  })
+  .$usage("render");
