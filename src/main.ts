@@ -3,7 +3,7 @@ import * as m from "wgpu-matrix";
 
 const root = await tgpu.init();
 
-const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
+const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
@@ -64,3 +64,30 @@ function createCube(): d.Infer<typeof Vertex>[] { //x y z w(always =1)
   ], d.vec4f(0, 1, 1, 1));
   return [...front, ...back, ...top, ...bottom, ...right, ...left]; // returns flat array 36 vertices
 }
+
+const aspect = canvas.clientWidth / canvas.clientHeight; //stretching prevention
+const target = d.vec3f(0, 0, 0); //the point the camera looks at
+const cameraInitialPos = d.vec4f(12, 2, 2, 1); //right up forward w=1
+
+const cameraInitial = {
+  view: m.mat4.lookAt(cameraInitialPos, target, d.vec3f(0, 1, 0), d.mat4x4f()), //lookAt(placement of camera, target, up=Yaxis, where to store output) 
+  projection: m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, d.mat4x4f()), //perspective(45 degree field of view, width/height ratio, closer than 0.1 units invisible, farther than 1000 units invisible)
+};
+ 
+
+const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex)); //layout of the vertex to arrange data for GPU 
+
+const cubeBuffer = root
+  .createBuffer(vertexLayout.schemaForCount(36), createCube()) //schema, data - allocates memory and fills it with data from createCube()
+  .$usage("vertex"); //this buffor stores only vertexes
+
+const cameraBuffer = root
+  .createBuffer(Camera, cameraInitial)
+  .$usage("uniform"); //this buffor stores data that is the same for the draw call
+
+const transformBuffer = root
+  .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) }) // { model matrix : raw model placement (output storage)}
+  .$usage("uniform"); //all of the vertexes will be moving together
+
+//model matrix moves one particullar model
+//view matrix like (lookAt) moves camera
