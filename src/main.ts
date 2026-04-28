@@ -91,3 +91,13 @@ const transformBuffer = root
 
 //model matrix moves one particullar model
 //view matrix like (lookAt) moves camera
+
+const layout = tgpu.bindGroupLayout({ //layout of resources for the shader has acces to
+  camera: { uniform: Camera }, //
+  transform: { uniform: Transform },
+});
+
+const bindGroup = root.createBindGroup(layout, { //group for binding the camera and transform buffers with the shader that fulfills the required layout
+  camera: cameraBuffer,
+  transform: transformBuffer,
+});
