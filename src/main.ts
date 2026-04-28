@@ -119,3 +119,72 @@ const msaaTexture = root
     sampleCount: 4,
   })
   .$usage("render");
+
+//a vertex shader that runs on GPU once for each vertex
+const vertex = tgpu.vertexFn({
+  in: { position: d.vec4f, color: d.vec4f }, //input: one vertex's position and color
+  out: { pos: d.builtin.position, color: d.vec4f }, //output: screen position + color to pass to fragment shader
+})((input) => {
+  //multiply the vertex position through: object space(*model matrix) -> world space(*camera space) -> 2D clip space
+  const pos = std.mul(
+    layout.$.camera.projection, //apply perspective projection
+    std.mul( 
+      layout.$.camera.view, //apply camera view transform
+      std.mul(layout.$.transform.model, input.position) //apply object's model transform
+    )
+  );
+  return { pos, color: input.color }; //return 2d screen position, color
+});
+
+
+//fragment shader that runs on GPU once for each pixel
+//it decides the color of a pixel
+const fragment = tgpu.fragmentFn({
+  in: { color: d.vec4f }, //input blended color value of a pixel (from nearby vertices)
+  out: d.vec4f, //output final rgba color of a pixel
+})((input) => input.color);//pass unchanged color no. shadow etc
+
+//render pipeline
+const pipeline = root.createRenderPipeline({
+  attribs: vertexLayout.attrib, //how to read vertex data from buffer
+  vertex, //vertex shader
+  fragment, //fragment shader
+  depthStencil: {
+    format: "depth24plus", 
+    depthWriteEnabled: true, //after drawing the depth values are saved to texture
+    depthCompare: "less", //only drawing a pixel its depth is less (closer to the camera) 
+  },
+  multisample: { count: 4 }, //same as sampleCount in texture
+});
+
+
+function drawObject(
+  buffer: typeof cubeBuffer, //vertex data from buffer
+  group: typeof bindGroup, //bindgroup connecting uniforms to the shader
+  vertexCount: number, //number of vertices
+  loadOp: "clear" | "load", //clear - wpie the screen, load - draw on top
+) {
+  pipeline
+    .withColorAttachment({
+      view: msaaTexture, //draw into MSAA texture
+      resolveTarget: context, //resolve 4 canvas down to canvas
+      loadOp, //clear - wipe before drawing, load-keep existing content
+    })
+    .withDepthStencilAttachment({
+      view: depthTexture, //depth texture
+      depthClearValue: 1, //clear depth to 1.0 - (nothing is drawn)
+      depthLoadOp: loadOp, 
+      depthStoreOp: "store", //store the depth values after drawing
+    })
+    .with(vertexLayout, buffer) //connect vertex layout and cube vertex buffer to pipeline
+    .with(group) //connect bind group
+    .draw(vertexCount); //draw: vertex shader for 36 times, fill pixels with fragment shader
+}
+
+
+function frame() {
+  drawObject(cubeBuffer, bindGroup, 36, "clear"); //draw a cube clear, clear the sceen
+  requestAnimationFrame(frame); //before the next screen refresh call function frame
+}
+
+requestAnimationFrame(frame); //start of the loop
