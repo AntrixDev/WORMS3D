@@ -1,75 +1,25 @@
-// oxlint-disable-next-line no-unassigned-import
-import "./style.css";
-import typescriptLogo from "./assets/typescript.svg";
-import viteLogo from "./assets/vite.svg";
-import { setupCounter } from "./counter.ts";
-import tgpu, { common, d } from "typegpu";
+import tgpu, { d, std } from "typegpu";
+import * as m from "wgpu-matrix";
 
-document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <canvas id="canvas" width="256" height="256"></canvas>
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
-
-<div class="ticks"></div>
-
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src=${viteLogo} alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
-
-<div class="ticks"></div>
-<section id="spacer"></section>
-`;
-
-setupCounter(document.querySelector<HTMLButtonElement>("#counter")!);
-
-// Setting up TypeGPU
 const root = await tgpu.init();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
-const context = root.configureContext({ canvas });
+const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
+const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
-const pipeline = root.createRenderPipeline({
-  vertex: common.fullScreenTriangle,
-  fragment: ({ uv }) => {
-    "use gpu";
-    return d.vec4f(uv, 0, 1);
-  },
+//structure for the corner points of 3d cube
+const Vertex = d.struct({
+  position: d.vec4f, //where x y z w w=1(it's a position not a direction)
+  color: d.vec4f, //rgba
 });
 
-pipeline.withColorAttachment({ view: context }).draw(3);
+//structure for camera
+const Camera = d.struct({
+  view: d.mat4x4f, //where is it, which way is it looking
+  projection: d.mat4x4f, //3d -> 2d
+});
+
+//structure for object's transform
+const Transform = d.struct({
+  model: d.mat4x4f, //identity, translate, rotate, scale
+});
