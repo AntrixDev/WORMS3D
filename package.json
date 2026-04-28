@@ -11,7 +11,8 @@
     "fix": "oxlint --fix && oxfmt"
   },
   "dependencies": {
-    "typegpu": "^0.10.2"
+    "typegpu": "^0.11.2",
+    "wgpu-matrix": "^3.4.2"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.69",
