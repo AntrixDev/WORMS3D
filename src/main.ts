@@ -4,6 +4,15 @@ import * as m from "wgpu-matrix";
 const root = await tgpu.init();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
+
+function resize() { 
+  canvas.width = window.innerWidth; 
+  canvas.height = window.innerHeight; 
+}
+
+resize();
+window.addEventListener("resize", resize);
+
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
