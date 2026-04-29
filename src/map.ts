@@ -1,0 +1,1 @@
+//cube 100x100 (110x10 tseting) position of 6 sides *layers
