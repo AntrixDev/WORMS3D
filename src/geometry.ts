@@ -19,7 +19,7 @@ function createFace(
 }
 
 
-export function createCube(): d.Infer<typeof Vertex>[] {
+function createCube(): d.Infer<typeof Vertex>[] {
   const front = createFace([
     [-1, -1,  1, 1], [1, -1,  1, 1], [1,  1,  1, 1],
     [-1, -1,  1, 1], [1,  1,  1, 1], [-1,  1,  1, 1],
@@ -45,5 +45,11 @@ export function createCube(): d.Infer<typeof Vertex>[] {
     [-1, -1,  1, 1], [-1,  1,  1, 1], [-1,  1, -1, 1],
   ], d.vec4f(0, 1, 1, 1));
   return [...front, ...back, ...top, ...bottom, ...right, ...left];
+}
+
+export function createCubeBuffer(root: any) {
+  return root
+    .createBuffer(vertexLayout.schemaForCount(36), createCube())
+    .$usage("vertex");
 }
 

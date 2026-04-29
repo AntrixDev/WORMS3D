@@ -1,7 +1,7 @@
 import tgpu, { d, std } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
-import { vertexLayout, createCube } from "./geometry";
+import { vertexLayout, createCubeBuffer} from "./geometry";
 
 const root = await tgpu.init();
 
@@ -24,10 +24,7 @@ const Transform = d.struct({
 });
 
 const cameraBuffer = createCamera(root, canvas);
-
-const cubeBuffer = root
-  .createBuffer(vertexLayout.schemaForCount(36), createCube())
-  .$usage("vertex");
+const cubeBuffer = createCubeBuffer(root);
 
 const transformBuffer = root
   .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) })
