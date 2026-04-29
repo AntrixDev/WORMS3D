@@ -3,7 +3,7 @@ import * as m from "wgpu-matrix";
 
 const root = await tgpu.init();
 
-const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
