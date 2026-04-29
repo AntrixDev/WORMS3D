@@ -1,5 +1,6 @@
 import tgpu, { d, std } from "typegpu";
 import * as m from "wgpu-matrix";
+import { Camera, createCamera } from "./camera";
 
 const root = await tgpu.init();
 
@@ -21,13 +22,6 @@ const Vertex = d.struct({
   position: d.vec4f,
   color: d.vec4f,
 });
-
-
-const Camera = d.struct({
-  view: d.mat4x4f,
-  projection: d.mat4x4f,
-});
-
 
 const Transform = d.struct({
   model: d.mat4x4f,
@@ -71,24 +65,13 @@ function createCube(): d.Infer<typeof Vertex>[] {
   return [...front, ...back, ...top, ...bottom, ...right, ...left];
 }
 
-const aspect = canvas.clientWidth / canvas.clientHeight;
-const target = d.vec3f(0, 0, 0);
-const cameraInitialPos = d.vec4f(12, 5, 12, 1);
-
-const cameraInitial = {
-  view: m.mat4.lookAt(cameraInitialPos, target, d.vec3f(0, 1, 0), d.mat4x4f()),
-  projection: m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, d.mat4x4f()),
-};
+const cameraBuffer = createCamera(root, canvas);
 
 const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex));
 
 const cubeBuffer = root
   .createBuffer(vertexLayout.schemaForCount(36), createCube())
   .$usage("vertex");
-
-const cameraBuffer = root
-  .createBuffer(Camera, cameraInitial)
-  .$usage("uniform");
 
 const transformBuffer = root
   .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) })
@@ -188,52 +171,3 @@ function frame() {
 }
 
 requestAnimationFrame(frame);
-
-let isDragging = false;
-let prevX = 0;
-let prevY = 0;
-
-let orbitRadius = Math.sqrt(
-  cameraInitialPos.x * cameraInitialPos.x +
-  cameraInitialPos.y * cameraInitialPos.y +
-  cameraInitialPos.z * cameraInitialPos.z,
-);
-
-let orbitYaw = Math.atan2(cameraInitialPos.x, cameraInitialPos.z);
-let orbitPitch = Math.asin(cameraInitialPos.y / orbitRadius);
-
-function updateCameraPosition() {
-  const x = orbitRadius * Math.sin(orbitYaw) * Math.cos(orbitPitch);
-  const y = orbitRadius * Math.sin(orbitPitch);
-  const z = orbitRadius * Math.cos(orbitYaw) * Math.cos(orbitPitch);
-
-  cameraBuffer.write({
-    view: m.mat4.lookAt(d.vec4f(x, y, z, 1), target, d.vec3f(0, 1, 0), d.mat4x4f()),
-    projection: cameraInitial.projection,
-  });
-}
-
-canvas.addEventListener("mousedown", (e) => {
-  isDragging = true;
-  prevX = e.clientX;
-  prevY = e.clientY;
-});
-
-window.addEventListener("mouseup", () => { isDragging = false; });
-
-window.addEventListener("mousemove", (e) => {
-  if (!isDragging) return;
-  const dx = e.clientX - prevX;
-  const dy = e.clientY - prevY;
-  prevX = e.clientX;
-  prevY = e.clientY;
-  orbitYaw += -dx * 0.005;
-  orbitPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, orbitPitch + dy * 0.005));
-  updateCameraPosition();
-});
-
-canvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  orbitRadius = Math.max(1, orbitRadius + e.deltaY * 0.05);
-  updateCameraPosition();
-}, { passive: false });
