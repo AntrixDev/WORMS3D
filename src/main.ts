@@ -7,26 +7,26 @@ const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
-//structure for the corner points of 3d cube
+
 const Vertex = d.struct({
-  position: d.vec4f, //where x y z w w=1(it's a position not a direction)
-  color: d.vec4f, //rgba
+  position: d.vec4f,
+  color: d.vec4f,
 });
 
-//structure for camera
+
 const Camera = d.struct({
-  view: d.mat4x4f, //where is it, which way is it looking
-  projection: d.mat4x4f, //3d -> 2d
+  view: d.mat4x4f,
+  projection: d.mat4x4f,
 });
 
-//structure for object's transform
+
 const Transform = d.struct({
-  model: d.mat4x4f, //identity, translate, rotate, scale
+  model: d.mat4x4f,
 });
 
 function createFace(
-  vertices: number[][], //list of vertices for 1 side of cube,
-  color: d.Infer<typeof Vertex>["color"]//color (all points on 1 side same clr)
+  vertices: number[][],
+  color: d.Infer<typeof Vertex>["color"]
 ): d.Infer<typeof Vertex>[] {
   return vertices.map((pos) => ({
     position: d.vec4f(...(pos as [number, number, number, number])),
@@ -34,13 +34,10 @@ function createFace(
   }));
 }
 
-//all of the traingles have to be drawn ccw or cw
-//the starting vertice doesn't matter as long as the direction of drawing is right
-
-function createCube(): d.Infer<typeof Vertex>[] { //x y z w(always =1)
-  const front = createFace([ 
-    [-1, -1,  1, 1], [1, -1,  1, 1], [1,  1,  1, 1], //x y z w 
-    [-1, -1,  1, 1], [1,  1,  1, 1], [-1,  1,  1, 1], //x y z w
+function createCube(): d.Infer<typeof Vertex>[] {
+  const front = createFace([
+    [-1, -1,  1, 1], [1, -1,  1, 1], [1,  1,  1, 1],
+    [-1, -1,  1, 1], [1,  1,  1, 1], [-1,  1,  1, 1],
   ], d.vec4f(1, 0, 0, 1));
   const back = createFace([
     [-1, -1, -1, 1], [-1,  1, -1, 1], [1, -1, -1, 1],
@@ -62,129 +59,172 @@ function createCube(): d.Infer<typeof Vertex>[] { //x y z w(always =1)
     [-1, -1, -1, 1], [-1, -1,  1, 1], [-1,  1, -1, 1],
     [-1, -1,  1, 1], [-1,  1,  1, 1], [-1,  1, -1, 1],
   ], d.vec4f(0, 1, 1, 1));
-  return [...front, ...back, ...top, ...bottom, ...right, ...left]; // returns flat array 36 vertices
+  return [...front, ...back, ...top, ...bottom, ...right, ...left];
 }
 
-const aspect = canvas.clientWidth / canvas.clientHeight; //stretching prevention
-const target = d.vec3f(0, 0, 0); //the point the camera looks at
-const cameraInitialPos = d.vec4f(12, 2, 2, 1); //right up forward w=1
+const aspect = canvas.clientWidth / canvas.clientHeight;
+const target = d.vec3f(0, 0, 0);
+const cameraInitialPos = d.vec4f(12, 5, 12, 1);
 
 const cameraInitial = {
-  view: m.mat4.lookAt(cameraInitialPos, target, d.vec3f(0, 1, 0), d.mat4x4f()), //lookAt(placement of camera, target, up=Yaxis, where to store output) 
-  projection: m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, d.mat4x4f()), //perspective(45 degree field of view, width/height ratio, closer than 0.1 units invisible, farther than 1000 units invisible)
+  view: m.mat4.lookAt(cameraInitialPos, target, d.vec3f(0, 1, 0), d.mat4x4f()),
+  projection: m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, d.mat4x4f()),
 };
- 
 
-const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex)); //layout of the vertex to arrange data for GPU 
+const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex));
 
 const cubeBuffer = root
-  .createBuffer(vertexLayout.schemaForCount(36), createCube()) //schema, data - allocates memory and fills it with data from createCube()
-  .$usage("vertex"); //this buffor stores only vertexes
+  .createBuffer(vertexLayout.schemaForCount(36), createCube())
+  .$usage("vertex");
 
 const cameraBuffer = root
   .createBuffer(Camera, cameraInitial)
-  .$usage("uniform"); //this buffor stores data that is the same for the draw call
+  .$usage("uniform");
 
 const transformBuffer = root
-  .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) }) // { model matrix : raw model placement (output storage)}
-  .$usage("uniform"); //all of the vertexes will be moving together
+  .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) })
+  .$usage("uniform");
 
-//model matrix moves one particullar model
-//view matrix like (lookAt) moves camera
-
-const layout = tgpu.bindGroupLayout({ //layout of resources for the shader has acces to
-  camera: { uniform: Camera }, //
+const layout = tgpu.bindGroupLayout({
+  camera: { uniform: Camera },
   transform: { uniform: Transform },
 });
 
-const bindGroup = root.createBindGroup(layout, { //group for binding the camera and transform buffers with the shader that fulfills the required layout
+const bindGroup = root.createBindGroup(layout, {
   camera: cameraBuffer,
   transform: transformBuffer,
 });
 
-//off-screen surface that tracks how far a pixel is from the camera
 
-const depthTexture = root 
-  .createTexture({
-    size: [canvas.width, canvas.height], //same size as the canvas
-    format: "depth24plus", //24 bits of precision 
-    sampleCount: 4, //a pixel is sampled 4 times
-  })
-  .$usage("render"); //output storage for a draw
 
-const msaaTexture = root
+const depthTexture = root
   .createTexture({
     size: [canvas.width, canvas.height],
-    format: presentationFormat, //same pixel format as the screen
+    format: "depth24plus",
     sampleCount: 4,
   })
   .$usage("render");
 
-//a vertex shader that runs on GPU once for each vertex
+const msaaTexture = root
+  .createTexture({
+    size: [canvas.width, canvas.height],
+    format: presentationFormat,
+    sampleCount: 4,
+  })
+  .$usage("render");
+
+
 const vertex = tgpu.vertexFn({
-  in: { position: d.vec4f, color: d.vec4f }, //input: one vertex's position and color
-  out: { pos: d.builtin.position, color: d.vec4f }, //output: screen position + color to pass to fragment shader
+  in: { position: d.vec4f, color: d.vec4f },
+  out: { pos: d.builtin.position, color: d.vec4f },
 })((input) => {
-  //multiply the vertex position through: object space(*model matrix) -> world space(*camera space) -> 2D clip space
+
   const pos = std.mul(
-    layout.$.camera.projection, //apply perspective projection
-    std.mul( 
-      layout.$.camera.view, //apply camera view transform
-      std.mul(layout.$.transform.model, input.position) //apply object's model transform
+    layout.$.camera.projection,
+    std.mul(
+      layout.$.camera.view,
+      std.mul(layout.$.transform.model, input.position)
     )
   );
-  return { pos, color: input.color }; //return 2d screen position, color
+  return { pos, color: input.color };
 });
 
 
-//fragment shader that runs on GPU once for each pixel
-//it decides the color of a pixel
-const fragment = tgpu.fragmentFn({
-  in: { color: d.vec4f }, //input blended color value of a pixel (from nearby vertices)
-  out: d.vec4f, //output final rgba color of a pixel
-})((input) => input.color);//pass unchanged color no. shadow etc
 
-//render pipeline
+const fragment = tgpu.fragmentFn({
+  in: { color: d.vec4f },
+  out: d.vec4f,
+})((input) => input.color);
+
 const pipeline = root.createRenderPipeline({
-  attribs: vertexLayout.attrib, //how to read vertex data from buffer
-  vertex, //vertex shader
-  fragment, //fragment shader
+  attribs: vertexLayout.attrib,
+  vertex,
+  fragment,
   depthStencil: {
-    format: "depth24plus", 
-    depthWriteEnabled: true, //after drawing the depth values are saved to texture
-    depthCompare: "less", //only drawing a pixel its depth is less (closer to the camera) 
+    format: "depth24plus",
+    depthWriteEnabled: true,
+    depthCompare: "less",
   },
-  multisample: { count: 4 }, //same as sampleCount in texture
+  multisample: { count: 4 },
 });
 
 
 function drawObject(
-  buffer: typeof cubeBuffer, //vertex data from buffer
-  group: typeof bindGroup, //bindgroup connecting uniforms to the shader
-  vertexCount: number, //number of vertices
-  loadOp: "clear" | "load", //clear - wpie the screen, load - draw on top
+  buffer: typeof cubeBuffer,
+  group: typeof bindGroup,
+  vertexCount: number,
+  loadOp: "clear" | "load",
 ) {
   pipeline
     .withColorAttachment({
-      view: msaaTexture, //draw into MSAA texture
-      resolveTarget: context, //resolve 4 canvas down to canvas
-      loadOp, //clear - wipe before drawing, load-keep existing content
+      view: msaaTexture,
+      resolveTarget: context,
+      loadOp,
     })
     .withDepthStencilAttachment({
-      view: depthTexture, //depth texture
-      depthClearValue: 1, //clear depth to 1.0 - (nothing is drawn)
-      depthLoadOp: loadOp, 
-      depthStoreOp: "store", //store the depth values after drawing
+      view: depthTexture,
+      depthClearValue: 1,
+      depthLoadOp: loadOp,
+      depthStoreOp: "store",
     })
-    .with(vertexLayout, buffer) //connect vertex layout and cube vertex buffer to pipeline
-    .with(group) //connect bind group
-    .draw(vertexCount); //draw: vertex shader for 36 times, fill pixels with fragment shader
+    .with(vertexLayout, buffer)
+    .with(group)
+    .draw(vertexCount);
 }
 
 
 function frame() {
-  drawObject(cubeBuffer, bindGroup, 36, "clear"); //draw a cube clear, clear the sceen
-  requestAnimationFrame(frame); //before the next screen refresh call function frame
+  drawObject(cubeBuffer, bindGroup, 36, "clear");
+  requestAnimationFrame(frame);
 }
 
-requestAnimationFrame(frame); //start of the loop
+requestAnimationFrame(frame);
+
+let isDragging = false;
+let prevX = 0;
+let prevY = 0;
+
+let orbitRadius = Math.sqrt(
+  cameraInitialPos.x * cameraInitialPos.x +
+  cameraInitialPos.y * cameraInitialPos.y +
+  cameraInitialPos.z * cameraInitialPos.z,
+);
+
+let orbitYaw = Math.atan2(cameraInitialPos.x, cameraInitialPos.z);
+let orbitPitch = Math.asin(cameraInitialPos.y / orbitRadius);
+
+function updateCameraPosition() {
+  const x = orbitRadius * Math.sin(orbitYaw) * Math.cos(orbitPitch);
+  const y = orbitRadius * Math.sin(orbitPitch);
+  const z = orbitRadius * Math.cos(orbitYaw) * Math.cos(orbitPitch);
+
+  cameraBuffer.write({
+    view: m.mat4.lookAt(d.vec4f(x, y, z, 1), target, d.vec3f(0, 1, 0), d.mat4x4f()),
+    projection: cameraInitial.projection,
+  });
+}
+
+canvas.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+
+window.addEventListener("mouseup", () => { isDragging = false; });
+
+window.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - prevX;
+  const dy = e.clientY - prevY;
+  prevX = e.clientX;
+  prevY = e.clientY;
+  orbitYaw += -dx * 0.005;
+  orbitPitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, orbitPitch + dy * 0.005));
+  updateCameraPosition();
+});
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  orbitRadius = Math.max(1, orbitRadius + e.deltaY * 0.05);
+  updateCameraPosition();
+}, { passive: false });
