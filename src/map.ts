@@ -5,7 +5,7 @@ export const cubeInstance = d.struct({
     model: d.mat4x4f,
 });
 
-const plateSize = 100;
+const plateSize = 50;
 
 const instanceArray: d.InferInput<typeof cubeInstance>[]=[];
 
