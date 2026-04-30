@@ -2,7 +2,7 @@ import tgpu, { d, std } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
 import { Transform, vertexLayout, createCubeBuffer, createTransformBuffer} from "./geometry";
-import { checkPosition, cubeInstance, createPlateBuffer} from "./map";
+import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
 
 const root = await tgpu.init();
 
@@ -27,11 +27,13 @@ const transformBuffer = createTransformBuffer(root);
 const layout = tgpu.bindGroupLayout({
   camera: { uniform: Camera },
   transform: { uniform: Transform },
+  instance: {storage: d.arrayOf(cubeInstance)},
 });
 
 const bindGroup = root.createBindGroup(layout, {
   camera: cameraBuffer,
   transform: transformBuffer,
+  instance: instanceBuffer
 });
 
 
@@ -54,7 +56,7 @@ const msaaTexture = root
 
 
 const vertex = tgpu.vertexFn({
-  in: { position: d.vec4f, color: d.vec4f },
+  in: { position: d.vec4f, color: d.vec4f, instanceIndex: d.builtin.instanceIndex },
   out: { pos: d.builtin.position, color: d.vec4f },
 })((input) => {
 
@@ -62,7 +64,7 @@ const vertex = tgpu.vertexFn({
     layout.$.camera.projection,
     std.mul(
       layout.$.camera.view,
-      std.mul(layout.$.transform.model, input.position)
+      std.mul(layout.$.instance[input.instanceIndex].model, input.position)
     )
   );
   return { pos, color: input.color };
@@ -92,6 +94,7 @@ function drawObject(
   buffer: typeof cubeBuffer,
   group: typeof bindGroup,
   vertexCount: number,
+  instanceCount: number,
   loadOp: "clear" | "load",
 ) {
   pipeline
@@ -108,12 +111,12 @@ function drawObject(
     })
     .with(vertexLayout, buffer)
     .with(group)
-    .draw(vertexCount);
+    .draw(vertexCount, instanceCount);
 }
 
 
 function frame() {
-  drawObject(cubeBuffer, bindGroup, 36, "clear");
+  drawObject(cubeBuffer, bindGroup, 36, cubeCount, "clear");
   requestAnimationFrame(frame);
 }
 

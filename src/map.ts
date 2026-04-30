@@ -5,11 +5,9 @@ export const cubeInstance = d.struct({
     model: d.mat4x4f,
 });
 
-const plateSize = 10;
+const plateSize = 100;
 
-const instanceArray: {
-    model: Float32Array 
-}[]=[];
+const instanceArray: d.InferInput<typeof cubeInstance>[]=[];
 
 const offset = Math.floor(plateSize / 2);
 
@@ -20,11 +18,11 @@ for(let i=0; i <plateSize*plateSize; i++){
     const z = Math.floor((i/plateSize)) - offset;
 
     instanceArray.push({
-        model: m.mat4.translate([x, y ,z], d.mat4x4f()),
+        model: m.mat4.translation([x, y, z], d.mat4x4f()),
     });
 }
 
- const cubeCount = instanceArray.length;
+export const cubeCount = instanceArray.length;
 
 export function checkPosition(cubeIndex: number){
     let instance = instanceArray[cubeIndex];
