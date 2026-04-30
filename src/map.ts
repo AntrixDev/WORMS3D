@@ -23,3 +23,8 @@ for(let i=0; i <plateSize*plateSize; i++){
 }
 
  const cubeCount = instanceArray.length;
+
+export function checkPosition(cubeIndex: number){
+    let instance = instanceArray[cubeIndex];
+    console.log(instance);
+}

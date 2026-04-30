@@ -2,6 +2,7 @@ import tgpu, { d, std } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
 import { vertexLayout, createCubeBuffer} from "./geometry";
+import { checkPosition} from "./map";
 
 const root = await tgpu.init();
 
@@ -124,3 +125,5 @@ function frame() {
 }
 
 requestAnimationFrame(frame);
+
+checkPosition(2);
