@@ -1,8 +1,8 @@
 import tgpu, { d, std } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
-import { vertexLayout, createCubeBuffer} from "./geometry";
-import { checkPosition} from "./map";
+import { Transform, vertexLayout, createCubeBuffer, createTransformBuffer} from "./geometry";
+import { checkPosition, cubeInstance, createPlateBuffer} from "./map";
 
 const root = await tgpu.init();
 
@@ -19,17 +19,10 @@ window.addEventListener("resize", resize);
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
-
-const Transform = d.struct({
-  model: d.mat4x4f,
-});
-
 const cameraBuffer = createCamera(root, canvas);
 const cubeBuffer = createCubeBuffer(root);
-
-const transformBuffer = root
-  .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) })
-  .$usage("uniform");
+const instanceBuffer = createPlateBuffer(root);
+const transformBuffer = createTransformBuffer(root);
 
 const layout = tgpu.bindGroupLayout({
   camera: { uniform: Camera },

@@ -1,10 +1,14 @@
 import tgpu, { d} from "typegpu";
+import * as m from "wgpu-matrix";
 
 const Vertex = d.struct({
   position: d.vec4f,
   color: d.vec4f,
 });
 
+export const Transform = d.struct({
+  model: d.mat4x4f,
+});
 
 export const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex));
 
@@ -53,3 +57,8 @@ export function createCubeBuffer(root: any) {
     .$usage("vertex");
 }
 
+export function createTransformBuffer(root: any) {
+  return root
+     .createBuffer(Transform, { model: m.mat4.identity(d.mat4x4f()) })
+    .$usage("uniform");
+}
