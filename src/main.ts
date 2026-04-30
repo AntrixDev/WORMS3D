@@ -126,4 +126,4 @@ function frame() {
 
 requestAnimationFrame(frame);
 
-checkPosition(2);
+//checkPosition(0);
