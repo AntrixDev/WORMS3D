@@ -32,16 +32,24 @@ function addPlates(origin: number, plateSize: number){
                 model: m.mat4.translation([origin+a, origin+b, origin], d.mat4x4f()),
             });
 
+            instanceArray.push({
+                model: m.mat4.translation([origin+a, origin+b, origin+max], d.mat4x4f()),
+            });
+
 
         }
     }
 
 }
 
-const size = 40;
-const origin = -(size/2);
+const layers = 2;
 
-addPlates(origin, size);
+for(let i=0; i<layers; i++){
+    const size = 40+i*4;
+    const origin = -(size/2);
+
+    addPlates(origin, size);
+}
 
 export const cubeCount = instanceArray.length;
 
