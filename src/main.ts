@@ -1,8 +1,9 @@
-import tgpu, { d, std } from "typegpu";
+import tgpu, { d, std, common } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
 import { Transform, vertexLayout, createCubeBuffer, createTransformBuffer} from "./geometry";
 import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
+import { loadGLBModel } from "./modelLoader";
 
 const root = await tgpu.init();
 
@@ -23,6 +24,8 @@ const cameraBuffer = createCamera(root, canvas);
 const cubeBuffer = createCubeBuffer(root);
 const instanceBuffer = createPlateBuffer(root);
 const transformBuffer = createTransformBuffer(root);
+
+const modelData = await loadGLBModel('/assets/slime.glb');
 
 const layout = tgpu.bindGroupLayout({
   camera: { uniform: Camera },
