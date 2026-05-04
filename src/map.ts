@@ -13,11 +13,23 @@ function addPlates(origin: number, plateSize: number){
     for(let a=0; a<plateSize; a++){
         for(let b=0; b<plateSize; b++){
             instanceArray.push({
-                model: m.mat4.translation([origin+a, origin+0, origin+b], d.mat4x4f()),
+                model: m.mat4.translation([origin+a, origin, origin+b], d.mat4x4f()),
             });
 
             instanceArray.push({
                 model: m.mat4.translation([origin+a, origin+max, origin+b], d.mat4x4f()),
+            });
+
+            instanceArray.push({
+                model: m.mat4.translation([origin, origin+b, origin+a], d.mat4x4f()),
+            });
+
+            instanceArray.push({
+                model: m.mat4.translation([origin+max, origin+b, origin+a], d.mat4x4f()),
+            });
+
+            instanceArray.push({
+                model: m.mat4.translation([origin+a, origin+b, origin], d.mat4x4f()),
             });
 
 
