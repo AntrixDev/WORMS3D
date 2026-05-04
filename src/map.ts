@@ -5,22 +5,31 @@ export const cubeInstance = d.struct({
     model: d.mat4x4f,
 });
 
-const plateSize = 50;
-
 const instanceArray: d.InferInput<typeof cubeInstance>[]=[];
 
-const offset = Math.floor(plateSize / 2);
+function addPlates(origin: number, plateSize: number){
+    const max = plateSize-1;
 
-for(let i=0; i <plateSize*plateSize; i++){
+    for(let a=0; a<plateSize; a++){
+        for(let b=0; b<plateSize; b++){
+            instanceArray.push({
+                model: m.mat4.translation([origin+a, origin+0, origin+b], d.mat4x4f()),
+            });
 
-    const x = (i% plateSize) - offset;
-    const y =-2;
-    const z = Math.floor((i/plateSize)) - offset;
+            instanceArray.push({
+                model: m.mat4.translation([origin+a, origin+max, origin+b], d.mat4x4f()),
+            });
 
-    instanceArray.push({
-        model: m.mat4.translation([x, y, z], d.mat4x4f()),
-    });
+
+        }
+    }
+
 }
+
+const size = 40;
+const origin = -(size/2);
+
+addPlates(origin, size);
 
 export const cubeCount = instanceArray.length;
 
