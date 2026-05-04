@@ -17,7 +17,7 @@ export function createCamera(
   const viewMat = d.mat4x4f();
   const projMat = d.mat4x4f();
 
-  const cameraInitialPos = d.vec4f(12, 5, 12, 1);
+  const cameraInitialPos = d.vec4f(0, 0, 12, 1);
 
   m.mat4.lookAt(cameraInitialPos, target, up, viewMat);
   m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, projMat);
