@@ -20,21 +20,25 @@ function addPlates(origin: number, plateSize: number){
                 model: m.mat4.translation([origin+a, origin+max, origin+b], d.mat4x4f()),
             });
 
-            instanceArray.push({
-                model: m.mat4.translation([origin, origin+b, origin+a], d.mat4x4f()),
-            });
+            if(b>0 && b<max){
+                instanceArray.push({
+                    model: m.mat4.translation([origin, origin+b, origin+a], d.mat4x4f()),
+                });
 
-            instanceArray.push({
-                model: m.mat4.translation([origin+max, origin+b, origin+a], d.mat4x4f()),
-            });
+                instanceArray.push({
+                    model: m.mat4.translation([origin+max, origin+b, origin+a], d.mat4x4f()),
+                });
+                if(a>0 && a<max){
+                    instanceArray.push({
+                        model: m.mat4.translation([origin+a, origin+b, origin], d.mat4x4f()),
+                    });
 
-            instanceArray.push({
-                model: m.mat4.translation([origin+a, origin+b, origin], d.mat4x4f()),
-            });
+                    instanceArray.push({
+                        model: m.mat4.translation([origin+a, origin+b, origin+max], d.mat4x4f()),
+                    });
+                }
 
-            instanceArray.push({
-                model: m.mat4.translation([origin+a, origin+b, origin+max], d.mat4x4f()),
-            });
+            }
 
 
         }
@@ -42,10 +46,10 @@ function addPlates(origin: number, plateSize: number){
 
 }
 
-const layers = 2;
+const layers = 1;
 
 for(let i=0; i<layers; i++){
-    const size = 40+i*4;
+    const size = 20+i*4;
     const origin = -(size/2);
 
     addPlates(origin, size);
