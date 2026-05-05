@@ -15,7 +15,7 @@
         overflow: hidden;
         background-color: #000;
       }
-      canvas#game {
+      canvas#canvas {
         display: block;
         width: 100vw;
         height: 100vh;
@@ -23,7 +23,10 @@
     </style>
   </head>
   <body>
+    <div style="position: relative; display: inline-block;">
       <canvas id="canvas"></canvas>
+      <div style="position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;"></div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

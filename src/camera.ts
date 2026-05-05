@@ -11,72 +11,97 @@ export function createCamera(
     canvas: HTMLCanvasElement
 ) {
   const aspect = canvas.clientWidth / canvas.clientHeight;
+  
   const target = d.vec3f(0, 0, 0);
   const up = d.vec3f(0, 1, 0);
 
   const viewMat = d.mat4x4f();
   const projMat = d.mat4x4f();
 
-  const cameraInitialPos = d.vec4f(0, 0, 12, 1);
-
-  m.mat4.lookAt(cameraInitialPos, target, up, viewMat);
-  m.mat4.perspective(Math.PI / 4, aspect, 0.1, 1000, projMat);
 
   const cameraBuffer = root
     .createBuffer(Camera, { view: viewMat, projection: projMat })
     .$usage("uniform");
 
-  let isDragging = false;
-  let prevX = 0;
-  let prevY = 0;
+  let pos = m.vec3.create(0, 0, 52);
+  let yaw = -Math.PI / 2;
+  let pitch = 0;
 
-  let Radius = Math.sqrt(
-    cameraInitialPos.x * cameraInitialPos.x +
-    cameraInitialPos.y * cameraInitialPos.y +
-    cameraInitialPos.z * cameraInitialPos.z
-  );
+  const activeKeys = new Set<string>();
 
-  let Yaw = Math.atan2(cameraInitialPos.x, cameraInitialPos.z);
-  let Pitch = Math.asin(cameraInitialPos.y / Radius);
-
-  function updateCameraPosition() {
-    const x = Radius * Math.sin(Yaw) * Math.cos(Pitch);
-    const y = Radius * Math.sin(Pitch);
-    const z = Radius * Math.cos(Yaw) * Math.cos(Pitch);
-
-    m.mat4.lookAt(d.vec4f(x, y, z, 1), target, up, viewMat);
+  function updateViewMatrix() {
+    const forward = m.vec3.create(
+      Math.cos(pitch) * Math.cos(yaw),
+      Math.sin(pitch),
+      Math.cos(pitch) * Math.sin(yaw)
+    );
     
+    const target = m.vec3.add(pos, forward);
+    const up = m.vec3.create(0, 1, 0);
+
+    m.mat4.lookAt(pos, target, up, viewMat);
     cameraBuffer.patch({ view: viewMat });
   }
 
-  canvas.addEventListener("mousedown", (e) => {
-    isDragging = true;
-    prevX = e.clientX;
-    prevY = e.clientY;
+  updateViewMatrix();
+
+  canvas.addEventListener("click", () => {
+    canvas.requestPointerLock();
   });
 
-  window.addEventListener("mouseup", () => { isDragging = false; });
 
-  window.addEventListener("mousemove", (e) => {
-    if (!isDragging) return;
-    const dx = e.clientX - prevX;
-    const dy = e.clientY - prevY;
-    prevX = e.clientX;
-    prevY = e.clientY;
-    Yaw += -dx * 0.005;
-    Pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, Pitch + dy * 0.005));
-    updateCameraPosition();
+window.addEventListener("mousemove", (e) => {
+    if (document.pointerLockElement !== canvas) return;
+    
+    yaw += e.movementX * 0.002; 
+    pitch += -e.movementY * 0.002;
+    
+    pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+    
+    updateViewMatrix();
   });
 
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    Radius = Math.max(1, Radius + e.deltaY * 0.05);
-    updateCameraPosition();
-  }, { passive: false });
+  window.addEventListener("keydown", (e) => activeKeys.add(e.code));
+  window.addEventListener("keyup", (e) => activeKeys.delete(e.code));
+
+  let lastTime = performance.now();
+
+  function renderLoop(time: number) {
+    const dt = (time - lastTime) * 0.001;
+    lastTime = time;
+
+    const speed = 15.0 * dt * (activeKeys.has("ShiftLeft") ? 2.5 : 1.0);
+    
+    const forward = m.vec3.create(
+      Math.cos(pitch) * Math.cos(yaw),
+      Math.sin(pitch),
+      Math.cos(pitch) * Math.sin(yaw)
+    );
+    
+    const right = m.vec3.normalize(m.vec3.cross(forward, [0, 1, 0]));
+    const upVec = [0, 1, 0];
+
+    let moved = false;
+
+    if (activeKeys.has("KeyW")) { m.vec3.addScaled(pos, forward, speed, pos); moved = true; }
+    if (activeKeys.has("KeyS")) { m.vec3.addScaled(pos, forward, -speed, pos); moved = true; }
+    if (activeKeys.has("KeyA")) { m.vec3.addScaled(pos, right, -speed, pos); moved = true; }
+    if (activeKeys.has("KeyD")) { m.vec3.addScaled(pos, right, speed, pos); moved = true; }
+    
+    if (activeKeys.has("Space")) { m.vec3.addScaled(pos, upVec, speed, pos); moved = true; }
+    if (activeKeys.has("ControlLeft")) { m.vec3.addScaled(pos, upVec, -speed, pos); moved = true; }
+
+    if (moved) {
+        updateViewMatrix();
+    }
+
+    requestAnimationFrame(renderLoop);
+  }
+  
+  requestAnimationFrame(renderLoop);
 
   window.addEventListener("resize", () => {
-    const newAspect = canvas.clientWidth / canvas.clientHeight;
-    m.mat4.perspective(Math.PI / 4, newAspect, 0.1, 1000, projMat);
+    m.mat4.perspective(Math.PI / 4, canvas.clientWidth / canvas.clientHeight, 0.1, 1000, projMat);
     cameraBuffer.patch({ projection: projMat });
   });
 
