@@ -1,21 +1,16 @@
 import tgpu, { d, std, common } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createCamera } from "./camera";
-import { Transform, vertexLayout, createCubeBuffer, createTransformBuffer} from "./geometry";
+import { vertexLayout, createCubeBuffer} from "./geometry";
 import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
-import { loadGLBModel } from "./modelLoader";
+import { createSlimePipeline } from "./slimePipeline";
 
 const root = await tgpu.init();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
 
-function resize() { 
-  canvas.width = window.innerWidth; 
-  canvas.height = window.innerHeight; 
-}
-
-resize();
-window.addEventListener("resize", resize);
+canvas.width  = window.innerWidth;
+canvas.height = window.innerHeight;
 
 const context = root.configureContext({ canvas, alphaMode: "premultiplied" });
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -23,67 +18,40 @@ const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 const cameraBuffer = createCamera(root, canvas);
 const cubeBuffer = createCubeBuffer(root);
 const instanceBuffer = createPlateBuffer(root);
-const transformBuffer = createTransformBuffer(root);
 
-const modelData = await loadGLBModel('/assets/slime.glb');
-
-const layout = tgpu.bindGroupLayout({
+const cubeLayout = tgpu.bindGroupLayout({
   camera: { uniform: Camera },
-  transform: { uniform: Transform },
   instance: {storage: d.arrayOf(cubeInstance)},
 });
 
-const bindGroup = root.createBindGroup(layout, {
+const cubeBindGroup = root.createBindGroup(cubeLayout, {
   camera: cameraBuffer,
-  transform: transformBuffer,
   instance: instanceBuffer
 });
 
-
-
-const depthTexture = root
-  .createTexture({
-    size: [canvas.width, canvas.height],
-    format: "depth24plus",
-    sampleCount: 4,
-  })
-  .$usage("render");
-
-const msaaTexture = root
-  .createTexture({
-    size: [canvas.width, canvas.height],
-    format: presentationFormat,
-    sampleCount: 4,
-  })
-  .$usage("render");
-
-
-const vertex = tgpu.vertexFn({
+const cubeVertex = tgpu.vertexFn({
   in: { position: d.vec4f, color: d.vec4f, instanceIndex: d.builtin.instanceIndex },
   out: { pos: d.builtin.position, color: d.vec4f },
 })((input) => {
 
   const pos = std.mul(
-    layout.$.camera.projection,
+    cubeLayout.$.camera.projection,
     std.mul(
-      layout.$.camera.view,
-      std.mul(layout.$.instance[input.instanceIndex].model, input.position)
+      cubeLayout.$.camera.view,
+      std.mul(cubeLayout.$.instance[input.instanceIndex].model, input.position)
     )
   );
   return { pos, color: input.color };
 });
 
-
-
-const fragment = tgpu.fragmentFn({
-  in: { color: d.vec4f },
-  out: d.vec4f,
-})((input) => input.color);
-
-const pipeline = root.createRenderPipeline({
+const cubePipeline = root.createRenderPipeline({
   attribs: vertexLayout.attrib,
-  vertex,
-  fragment,
+  vertex: cubeVertex,
+  fragment: tgpu.fragmentFn({ 
+    in: { color: d.vec4f }, 
+    out: d.vec4f 
+  })((i) => i.color),
+  targets: { format: presentationFormat },
   depthStencil: {
     format: "depth24plus",
     depthWriteEnabled: true,
@@ -92,34 +60,62 @@ const pipeline = root.createRenderPipeline({
   multisample: { count: 4 },
 });
 
+function makeTextures() {
+  return {
+    depth: root.createTexture({ 
+      size: [canvas.width, canvas.height],
+      format: "depth24plus",
+      sampleCount: 4
+    }).$usage("render"),
 
-function drawObject(
-  buffer: typeof cubeBuffer,
-  group: typeof bindGroup,
-  vertexCount: number,
-  instanceCount: number,
-  loadOp: "clear" | "load",
+    msaa: root.createTexture({
+      size: [canvas.width, canvas.height],
+      format: presentationFormat,
+      sampleCount: 4
+    }).$usage("render"),
+  };
+}
+let { depth: depthTexture, msaa: msaaTexture } = makeTextures();
+
+window.addEventListener("resize", () => {
+  canvas.width = window.innerWidth; 
+  canvas.height = window.innerHeight;
+  depthTexture.destroy(); 
+  msaaTexture.destroy();
+  ({ depth: depthTexture, msaa: msaaTexture } = makeTextures());
+});
+
+
+const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat);
+
+function drawCubes(
+  msaaTexture: any, 
+  depthTexture: any, 
+  context: any
 ) {
-  pipeline
+  cubePipeline
     .withColorAttachment({
       view: msaaTexture,
       resolveTarget: context,
-      loadOp,
+      loadOp: "clear",
+      clearValue: [0.1, 0.1, 0.15, 1],
     })
     .withDepthStencilAttachment({
       view: depthTexture,
       depthClearValue: 1,
-      depthLoadOp: loadOp,
+      depthLoadOp: "clear",
       depthStoreOp: "store",
     })
-    .with(vertexLayout, buffer)
-    .with(group)
-    .draw(vertexCount, instanceCount);
+    .with(vertexLayout, cubeBuffer)
+    .with(cubeBindGroup)
+    .draw(36, cubeCount);
 }
 
 
 function frame() {
-  drawObject(cubeBuffer, bindGroup, 36, cubeCount, "clear");
+  drawCubes(msaaTexture, depthTexture, context);
+  slime.draw(msaaTexture, depthTexture, context);
+
   requestAnimationFrame(frame);
 }
 

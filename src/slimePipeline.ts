@@ -13,8 +13,8 @@ export async function createSlimePipeline(
   const slime = await loadGLBModel("/assets/slime.glb");
 
   const ModelVertexData = d.struct({
-    position:   d.vec3f,
-    normal:     d.vec3f,
+    position: d.vec3f,
+    normal: d.vec3f,
     materialId: d.u32,
   });
   const modelVertexLayout = tgpu.vertexLayout(d.arrayOf(ModelVertexData));
@@ -76,8 +76,15 @@ export async function createSlimePipeline(
   });
 
   const modelVertex = tgpu.vertexFn({
-    in:  { position: d.vec3f, normal: d.vec3f, materialId: d.u32 },
-    out: { pos: d.builtin.position, color: d.vec4f },
+    in: {
+      position: d.vec3f,
+      normal: d.vec3f,
+      materialId: d.u32
+    },
+    out: {
+      pos: d.builtin.position,
+      color: d.vec4f
+    },
   })((input) => {
     const worldPos = std.mul(
       modelLayout.$.modelUniforms.model,
