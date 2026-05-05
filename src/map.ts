@@ -46,16 +46,35 @@ function addPlates(origin: number, plateSize: number){
 
 }
 
-const layers = 1;
+const layers = 13;
 
 for(let i=0; i<layers; i++){
-    const size = 20+i*4;
+    const size = 20+i*2;
     const origin = -(size/2);
 
     addPlates(origin, size);
 }
 
-export const cubeCount = instanceArray.length;
+const explX =8;
+const explY =-9;
+const explZ=7;
+const explRadius = 10;
+
+const explArray = instanceArray.filter(({ model }) => {
+    const tx = model[12];
+    const ty = model[13];
+    const tz = model[14];
+
+    const dx = tx-explX;
+    const dy = ty-explY;
+    const dz = tz-explZ;
+
+    const dist = dx*dx + dy*dy + dz*dz +1;
+
+    return dist > explRadius * explRadius;
+});
+
+export const cubeCount = explArray.length;
 
 export function checkPosition(cubeIndex: number){
     let instance = instanceArray[cubeIndex];
@@ -64,7 +83,7 @@ export function checkPosition(cubeIndex: number){
 
 export function createPlateBuffer(root: any){
     return root
-    .createBuffer(d.arrayOf(cubeInstance, cubeCount), instanceArray)
+    .createBuffer(d.arrayOf(cubeInstance, cubeCount), explArray)
     .$usage("storage");
 }
 

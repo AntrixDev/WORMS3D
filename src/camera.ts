@@ -25,7 +25,7 @@ export function createCamera(
     .createBuffer(Camera, { view: viewMat, projection: projMat })
     .$usage("uniform");
 
-  let pos = m.vec3.create(0, 0, 52);
+  let pos = m.vec3.create(0, 0, 0);
   let yaw = -Math.PI / 2;
   let pitch = 0;
 
