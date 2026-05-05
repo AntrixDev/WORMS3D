@@ -59,6 +59,16 @@ export async function createSlimePipeline(
       )
     );
 
+// const customPalette = Array.from({ length: materialCount }, (_, i) => {
+//   if (i === 0) return d.vec4f(0.95, 0.2, 0.6, 1.0);
+//   return d.vec4f(
+//     slime.paletteData[i * 4 + 0],
+//     slime.paletteData[i * 4 + 1],
+//     slime.paletteData[i * 4 + 2],
+//     slime.paletteData[i * 4 + 3],
+//   );
+// });
+
   const paletteBuffer = root
     .createBuffer(d.arrayOf(d.vec4f, materialCount), palette)
     .$usage("storage");
