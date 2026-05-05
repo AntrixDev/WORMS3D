@@ -10,14 +10,16 @@ export function createCamera(
     root: any, 
     canvas: HTMLCanvasElement
 ) {
-  const aspect = canvas.clientWidth / canvas.clientHeight;
-  
-  const target = d.vec3f(0, 0, 0);
-  const up = d.vec3f(0, 1, 0);
-
   const viewMat = d.mat4x4f();
   const projMat = d.mat4x4f();
 
+  m.mat4.perspective(
+    Math.PI / 4,
+    canvas.clientWidth / canvas.clientHeight,
+    0.1,
+    1000,
+    projMat
+  );
 
   const cameraBuffer = root
     .createBuffer(Camera, { view: viewMat, projection: projMat })
