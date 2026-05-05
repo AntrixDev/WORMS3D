@@ -5,6 +5,8 @@ import { vertexLayout, createCubeBuffer} from "./geometry";
 import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
 import { createSlimePipeline } from "./slimePipeline";
 
+export async function startGame(){
+
 const root = await tgpu.init();
 
 const canvas = document.querySelector<HTMLCanvasElement>("#canvas")!;
@@ -122,3 +124,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 //checkPosition(0);
+}

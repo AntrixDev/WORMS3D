@@ -30,11 +30,26 @@
         transform: translate(-50%, -50%); 
         pointer-events: none;
       }
+      div#root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        color: rgb(255, 255, 255);
+      }
+      div#root * {
+        pointer-events: auto;
+        cursor: pointer;
+      }
+</style>
     </style>
   </head>
   <body>
       <canvas id="canvas"></canvas>
       <div id="lockedCoursor"></div>
-    <script type="module" src="/src/main.ts"></script>
+      <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
