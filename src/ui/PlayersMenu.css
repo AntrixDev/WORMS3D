@@ -1,0 +1,71 @@
+#playerMenuBckg{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+
+  background-image: url('/src/ui/assets/bckg.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+    
+  overflow: hidden;
+  display: flex;
+  padding: 4em;
+}
+
+#playerMenuMain{
+    background-color: rgba(255, 255, 255, 0.536);
+    width: 100%;
+    height: auto;
+    border-radius: 25px;
+    backdrop-filter: blur(10px); 
+
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+
+}
+
+h1{
+  font-family: 'Titan One', 'Impact', sans-serif;
+  font-size: 6vh;
+  letter-spacing: 0.08em;
+  color: #111;
+}
+
+#playersWrap{
+  height: 60%;
+  width: 85%;
+  display: flex;
+  color: #000000;
+  padding: 1em;
+
+  justify-content: center;
+  overflow: auto;
+  flex-wrap: wrap;
+  gap: 10%;
+}
+
+#playersWrap::-webkit-scrollbar{
+  display: none;
+}
+
+#btnsWrap{
+  justify-content: center;
+  display: flex;
+  gap: 10%;
+}
+
+#characterPlaceholder{
+  width: 100%;
+  height: auto;
+}
+
+#characterPlaceholder img{
+  width: 100%;
+  height: auto;
+}
+
