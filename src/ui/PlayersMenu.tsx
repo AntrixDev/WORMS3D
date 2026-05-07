@@ -5,36 +5,36 @@ import character from './assets/characterPlaceholder.png'
 
 interface Player {
   id: number
-  name: string
+  username: string
 }
 
 let nextId = 3
 
-async function handleGameStart() {
-  document.getElementById('root')!.innerHTML = ''
-  const { startGame } = await import('../main.ts')
-  startGame()
-}
-
 function PlayersMenu() {
   const [players, setPlayers] = useState<Player[]>([
-    {id: 1, name: ''},
-    {id: 2, name: ''},
+    {id: 1, username: ''},
+    {id: 2, username: ''},
   ])
+  
+  async function handleGameStart() {
+    const { startGame } = await import('../main.ts')
+    document.getElementById('root')!.innerHTML = ''
+    startGame(players)
+  }
 
   function addPlayer() {
-    setPlayers(prev => [...prev, { id: nextId++, name: '' }])
+    setPlayers(prev => [...prev, { id: nextId++, username: '' }])
   }
 
   function updateName(id: number, value: string) {
-    setPlayers(prev => prev.map(p => p.id === id ? { ...p, name: value } : p))
+    setPlayers(prev => prev.map(p => p.id === id ? { ...p, username: value } : p))
   }
 
   function removePlayer(id: number) {
     setPlayers(prev => prev.filter(p => p.id !== id))
   }
 
-  const canStart = players.length >= 2 && players.every(p => p.name.trim() != '');
+  const canStart = players.length >= 2 && players.every(p => p.username.trim() != '');
 
   const playerLimit = players.length >= 12;
 
@@ -52,7 +52,7 @@ function PlayersMenu() {
                     <button id='btnDel' onClick={() => removePlayer(player.id)}>✗</button>
                   )}
                 </div>
-                <input type="text" className="usernameInput" id={`player-${player.id}`} value={player.name} onChange={e => updateName(player.id, e.target.value)}/>
+                <input type="text" className="usernameInput" id={`player-${player.id}`} value={player.username} onChange={e => updateName(player.id, e.target.value)}/>
                 <div id='characterPlaceholder'>
                   <p className='characterArrows'>&lt;</p>
                   <img src={character} alt="Slime character" draggable='false'/>
