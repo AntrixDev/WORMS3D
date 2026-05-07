@@ -15,17 +15,17 @@
 }
 
 #playerMenuMain{
-    background-color: rgba(255, 255, 255, 0.536);
-    width: 100%;
-    height: auto;
-    border-radius: 25px;
-    backdrop-filter: blur(10px); 
+  background-color: rgba(255, 255, 255, 0.43);
+  width: 100%;
+  height: auto;
+  border-radius: 25px;
+  backdrop-filter: blur(10px); 
 
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    align-items: center;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
 
 }
 
@@ -37,16 +37,17 @@ h1{
 }
 
 #playersWrap{
-  height: 60%;
+  height: 66%;
+  min-height: fit-content;
   width: 85%;
   display: flex;
   color: #000000;
-  padding: 1em;
+  padding: 2em;
 
   justify-content: center;
   overflow: auto;
   flex-wrap: wrap;
-  gap: 10%;
+  gap: 10% 10%;
 }
 
 #playersWrap::-webkit-scrollbar{
@@ -60,12 +61,65 @@ h1{
 }
 
 #characterPlaceholder{
-  width: 100%;
+  width: 90%;
   height: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  column-gap: 5%;
 }
 
 #characterPlaceholder img{
-  width: 100%;
+  width: 80%;
   height: auto;
 }
 
+.characterArrows{
+  font-size: 1.2em;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.characterArrows:hover{
+  color: rgb(107, 107, 107);
+}
+
+#btnDel{
+  background-color: rgb(220, 89, 89);
+  color: rgb(255, 255, 255);
+  width: 1.5em;
+  height: 1.5em;
+  border: 1px solid rgb(120, 52, 52);
+  font-size: 100%;
+  font-weight: 800;
+}
+
+#btnDel:hover{
+  scale: 1.2;
+}
+
+#btnDel:active{
+  scale: 0.;
+}
+
+.usernameInput{
+  border: solid 1.9px #000000;
+  border-radius: 1.3rem;
+  background: none;
+  padding: 0.2rem;
+  max-width: 10vw;
+  font-size: 1rem;
+  color: #000000;
+}
+
+.usernameInput:focus, input:valid{
+  box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.523);
+  transition: background 4s ease-in-out;
+}
+
+.usernameInput:hover{
+  border: solid 1.9px #000002;
+  transform: scale(1.03);
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.523);
+  transition: border-color 1s ease-in-out;
+}

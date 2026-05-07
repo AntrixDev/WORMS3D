@@ -17,7 +17,7 @@ function MainMenu({ onPlay }: MainMenuProps) {
       </div>
       <div className='flexCol' id='right'>
         <img src={logo} alt="JELLYS 3D" id='logo' draggable='false'/>
-        <Button text="PLAY" action={onPlay}/>
+        <Button text="PLAY" action={onPlay} isDisabled={false}/>
       </div>
     </section>
   )
