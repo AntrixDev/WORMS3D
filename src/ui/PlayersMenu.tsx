@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import './PlayersMenu.css'
+import './playersMenu.css'
 import Button from './components/button.tsx'
 import character from './assets/characterPlaceholder.png'
 

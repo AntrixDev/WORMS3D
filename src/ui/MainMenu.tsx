@@ -1,4 +1,4 @@
-import './MainMenu.css'
+import './mainMenu.css'
 import ceilingSlime from './assets/ceilingSlime.png'
 import explosion from './assets/explosion.png'
 import logo from './assets/logo.png'
