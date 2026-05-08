@@ -3,7 +3,7 @@ import './button.css'
 interface ButtonProps {
   text: string;
   action: () => void;
-  isDisabled: boolean;
+  isDisabled?: boolean;
 }
 
 function Button({ text, action, isDisabled }: ButtonProps){
