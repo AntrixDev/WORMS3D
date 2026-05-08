@@ -48,7 +48,7 @@ export async function createSlimePipeline(
   const materialCount = slime.paletteData.length / 4;
 
 
-  console.log("palette:", Array.from(slime.paletteData));
+  // console.log("palette:", Array.from(slime.paletteData));
 
   const palette = Array.from({ length: materialCount }, (_, i) =>
       d.vec4f(
