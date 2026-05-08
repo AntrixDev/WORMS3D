@@ -4,9 +4,9 @@ import { Camera, createCamera } from "./camera";
 import { vertexLayout, createCubeBuffer} from "./geometry";
 import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
 import { createSlimePipeline } from "./slimePipeline";
+import { forEach } from "@loaders.gl/core";
 
 interface Player{
-  id: number,
   username: string
 }
 
@@ -93,6 +93,10 @@ export async function startGame(playerData: Player[]) {
   });
 
   console.log("Player: ", playerData);
+
+  playerData.forEach((player, i)=> (
+    console.log("Player " + (i+1) +  " name: " + player.username)
+  ))
 
 
   const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat);

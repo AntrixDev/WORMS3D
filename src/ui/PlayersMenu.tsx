@@ -4,16 +4,13 @@ import Button from './components/button.tsx'
 import character from './assets/characterPlaceholder.png'
 
 interface Player {
-  id: number
   username: string
 }
 
-let nextId = 3
-
 function PlayersMenu() {
   const [players, setPlayers] = useState<Player[]>([
-    {id: 1, username: ''},
-    {id: 2, username: ''},
+    {username: ''},
+    {username: ''},
   ])
   
   async function handleGameStart() {
@@ -23,15 +20,15 @@ function PlayersMenu() {
   }
 
   function addPlayer() {
-    setPlayers(prev => [...prev, { id: nextId++, username: '' }])
+    setPlayers(prev => [...prev, { username: '' }])
   }
 
-  function updateName(id: number, value: string) {
-    setPlayers(prev => prev.map(p => p.id === id ? { ...p, username: value } : p))
+  function updateName(index: number, value: string) {
+    setPlayers(prev => prev.map((p, i) => i === index ? { ...p, username: value } : p))
   }
 
-  function removePlayer(id: number) {
-    setPlayers(prev => prev.filter(p => p.id !== id))
+  function removePlayer(index: number) {
+    setPlayers(prev => prev.filter((_,i)=> i !== index))
   }
 
   const canStart = players.length >= 2 && players.every(p => p.username.trim() != '');
@@ -45,14 +42,14 @@ function PlayersMenu() {
         <h1>PLAYERS MENU</h1>
         <section id='playersWrap'>
             {players.map((player, index) => (
-              <div key={player.id} style={{ display: 'flex', flexDirection: 'column', maxWidth: '10%', minWidth: '15%', minHeight: '10em', alignItems: 'center', gap: '0.5em'}}>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', gap: '2em'}}>
+              <div key={index} style={{ display: 'flex', flexDirection: 'column', maxWidth: '10%', minWidth: '15%', minHeight: '10em', alignItems: 'center', gap: '0.5em'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '2em',  width: '100%', columnGap: '2em'}}>
                   <label>Player {index + 1}</label>
                   {index >= 2 && (
-                    <button id='btnDel' onClick={() => removePlayer(player.id)}>✗</button>
+                    <button id='btnDel' onClick={() => removePlayer(index)}>✗</button>
                   )}
                 </div>
-                <input type="text" className="usernameInput" id={`player-${player.id}`} value={player.username} onChange={e => updateName(player.id, e.target.value)}/>
+                <input type="text" className="usernameInput" id={`player-${index}`} value={player.username} onChange={e => updateName(index, e.target.value)}/>
                 <div id='characterPlaceholder'>
                   <p className='characterArrows'>&lt;</p>
                   <img src={character} alt="Slime character" draggable='false'/>
