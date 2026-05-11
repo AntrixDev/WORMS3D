@@ -1,3 +1,5 @@
+import { arenaFloorY, arenaWallMax, arenaWallMin } from "./map";
+
 export type GamePhase = "instro" | "playing" | "aiming";
 
 export interface PlayerState {
@@ -35,3 +37,34 @@ export interface GameState {
 
 const turnDuration = 50;
 const introDuration = 5;
+
+const spawnMin = Math.ceil(arenaWallMin);
+const spawnMax = Math.ceil(arenaWallMax);
+
+export const defWeapons: Weapon[] = [
+    {id: "yomom", name: "yomom", ammo: 1, icon: "🚀"},
+    {id: "yodad", name: "yodad", ammo: 4, icon: "🧨"},
+];
+
+function randomSpawnCord(): number {
+    return Math.floor(Math.random() * (spawnMax - spawnMin+1)) + spawnMin;
+}
+
+function generateSpawns(count: number): Array<{x: number; z: number}> {
+    const used = new Set<string>();
+    const result: Array<{x: number; z: number}> = [];
+
+    for(let i=0; i< count; i++){
+        let x: number, z: number, cords: string;
+
+        do{
+            x= randomSpawnCord();
+            z= randomSpawnCord();
+            cords = `${x},${z}`;
+        }while(used.has(cords));
+        used.add(cords);
+        result.push({ x, z });
+    }
+
+    return result;
+}

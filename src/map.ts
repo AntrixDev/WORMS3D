@@ -46,10 +46,19 @@ function addPlates(origin: number, plateSize: number){
 
 }
 
-const layers = 13;
+export const arenaLayers = 13;
+export const arenaInnerSize = 20;
 
-for(let i=0; i<layers; i++){
-    const size = 20+i*2;
+const innerOrigin = -(arenaInnerSize/2);
+
+export const arenaWallMin = innerOrigin+1;
+export const arenaWallMax = innerOrigin + arenaInnerSize -2;
+export const arenaFloorY = innerOrigin + 0.5;
+export const arenaCeilY = innerOrigin + arenaInnerSize -2;
+
+
+for(let i=0; i<arenaLayers; i++){
+    const size = arenaInnerSize+i*2;
     const origin = -(size/2);
 
     addPlates(origin, size);
