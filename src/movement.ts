@@ -45,3 +45,19 @@ function getSceneSDF(px: number, py: number, pz: number): number {
   }
   return minDist;
 }
+
+function getSDFNormal(px: number, py: number, pz: number): [number, number, number] {
+  const eps = 0.01;
+  const s1 =getSceneSDF(px+ eps, py- eps, pz- eps);
+  const s2= getSceneSDF(px- eps, py- eps, pz+ eps);
+  const s3 =getSceneSDF(px-eps, py+ eps, pz- eps);
+  const s4 = getSceneSDF(px+ eps, py+ eps, pz+ eps);
+
+  const nx= (s1- s2- s3 + s4);
+  const ny= (-s1- s2+ s3 + s4);
+  const nz= (-s1+ s2- s3 + s4);
+
+  const len=Math.sqrt(nx * nx + ny * ny + nz * nz);
+  if(len===0) return [0, 1, 0];
+  return [nx / len,ny / len,nz / len];
+}
