@@ -61,3 +61,18 @@ function getSDFNormal(px: number, py: number, pz: number): [number, number, numb
   if(len===0) return [0, 1, 0];
   return [nx / len,ny / len,nz / len];
 }
+
+export function createMovementController(camera: ReturnType<typeof createGameCamera>) {
+  const activeKeys = new Set<string>();
+  window.addEventListener("keydown", (e) => activeKeys.add(e.code));
+  window.addEventListener("keyup", (e) => activeKeys.delete(e.code));
+
+  return {
+    update(dt: number, player: PlayerState, canMove: boolean): [number, number, number] {
+      let{ posX, posY, posZ } =player;
+      if(!canMove) return [posX, posY, posZ];
+      
+      return [posX, posY, posZ];
+    }
+  };
+}
