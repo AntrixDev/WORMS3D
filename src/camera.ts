@@ -200,16 +200,16 @@ export function createGameCamera(
     if (mode === "third-person") updateView();
   });
 
-  // window.addEventListener("wheel", (e) => {
-  //   tpc.distance += e.deltaY * 0.01;
-  //   tpc.distance = Math.max(1.5, Math.min(12, tpc.distance));
-  //   if (mode === "third-person") updateView();
-  // }, { passive: true });
+  window.addEventListener("wheel", (e) => {
+    tpc.distance += e.deltaY * 0.01;
+    tpc.distance = Math.max(1.5, Math.min(12, tpc.distance));
+    if (mode === "third-person") updateView();
+  }, { passive: true });
 
-  // window.addEventListener("resize", () => {
-  //   m.mat4.perspective(Math.PI / 3, canvas.clientWidth / canvas.clientHeight, 0.1, 500, projMat);
-  //   cameraBuffer.patch({ projection: projMat });
-  // });
+  window.addEventListener("resize", () => {
+    m.mat4.perspective(Math.PI / 3, canvas.clientWidth / canvas.clientHeight, 0.1, 500, projMat);
+    cameraBuffer.patch({ projection: projMat });
+  });
 
   canvas.addEventListener("click", () => {
     if (getInventoryOpen()) {
