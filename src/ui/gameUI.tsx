@@ -56,14 +56,58 @@ function TurnUI({ player, turnTimeLeft }: { player: PlayerState; turnTimeLeft: n
             <div className="hp-fill" style={{ width: `${hpPct}%`, backgroundColor: hpColor, transition: "width 0.5s, background-color 0.5s" }} />
           </div>
           <span className="hp-value">{hpPct}</span>
-        </div>
+         </div>
       </div>
     </div>
   );
 }
 
-export function GameUI({ gameState, onSkipIntro, onToggleInventory }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void }) {
-  const { phase, players, currentPlayerIndex, turnTimeLeft, introTimeLeft} = gameState;
+
+function InventoryPanel({ inventory, selected, onSelect, onClose }: { inventory: Weapon[]; selected: Weapon | null; onSelect: (w: Weapon) => void; onClose: () => void }) {
+  return (
+    <div className="inventory-panel" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <div className="inventory-header">
+        <span className="inventory-title">WEAPONS</span>
+        <button className="inventory-close" onClick={onClose}>✕</button></div>
+      <div className="inventory-list">
+        {inventory.map((w) => (
+          <button
+            key={w.id}
+            className={`weapon-slot ${selected?.id === w.id ? 'selected' : ''}`}
+            onClick={() => onSelect(w)}
+            style={selected?.id === w.id ? { borderColor: primaryColor, backgroundColor: `${primaryColor}15` } : {}}
+          >
+            <span className="weapon-icon">{w.icon}</span>
+            <span className="weapon-name">{w.name}</span>
+            <span className="weapon-ammo">×{w.ammo}</span>
+          </button>
+        ))}
+      </div>
+      <div className="inventory-hint">Press Q to close</div>
+    </div>
+  );
+}
+
+function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOpenInventory: () => void }) {
+  return (
+    <div className="weapon-hud" onClick={onOpenInventory}>
+      <div className="weapon-hud-slot" style={{ borderRight: `6px solid ${primaryColor}` }}>
+        {selected ? (
+          <>
+            <span style={{ fontSize: 32 }}>{selected.icon}</span>
+            <span className="weapon-hud-name">{selected.name}</span>
+            <span className="weapon-hud-ammo" style={{ color: primaryColor }}>×{selected.ammo}</span>
+          </>
+        ) : (
+          <span className="weapon-hud-empty">[ Q ] WEAPONS</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void }) {
+  const { phase, players, currentPlayerIndex, turnTimeLeft, introTimeLeft, selectedWeapon, inventory, inventoryOpen } = gameState;
   const currentPlayer = players[currentPlayerIndex];
 
   useEffect(() => {
@@ -73,11 +117,16 @@ export function GameUI({ gameState, onSkipIntro, onToggleInventory }: { gameStat
   }, [phase, onToggleInventory]);
 
   return (
-    <div className="container">
+    <div className="hud-container">
       {phase === "intro" && <IntroOverlay player={currentPlayer} timeLeft={introTimeLeft} onSkip={onSkipIntro} />}
       {phase === "playing" && (
         <>
           <TurnUI player={currentPlayer} turnTimeLeft={turnTimeLeft} />
+          {inventoryOpen ? (
+            <InventoryPanel inventory={inventory} selected={selectedWeapon} onSelect={onSelectWeapon} onClose={onToggleInventory} />
+          ) : (
+            <WeaponUI selected={selectedWeapon} onOpenInventory={onToggleInventory} />
+          )}
         </>
       )}
     </div>
