@@ -3,12 +3,24 @@ import * as m from "wgpu-matrix";
 import { Camera } from "./camera";
 import { ModelUniforms } from "./modelSchema";
 import { loadGLBModel } from "./modelLoader";
+import type { PlayerState } from "./gameState";
+
+function buildModelMat(px: number, py: number, pz: number, yaw: number ){
+  const mat = d.mat4x4f();
+  m.mat4.identity(mat);
+  m.mat4.translate(mat, [px, py, pz], mat);
+  m.mat4.rotateY(mat, yaw - Math.PI / 2, mat);
+  m.mat4.scale(mat, [scale, scale, scale], mat);
+  return mat;
+}
+
+const scale = 0.5;
 
 export async function createSlimePipeline(
   root: any,
   cameraBuffer: any,
   presentationFormat: GPUTextureFormat,
-
+  players: PlayerState[],
 ) {
   const slime = await loadGLBModel("/assets/slime.glb");
 
@@ -32,18 +44,6 @@ export async function createSlimePipeline(
   const modelIndexBuffer = root
     .createBuffer(d.arrayOf(d.u32, slime.indexCount), Array.from(slime.indices))
     .$usage("index");
-
-  const FLOOR_Y = -9.5;
-  const SCALE = 0.45;
-
-  const modelMat = d.mat4x4f();
-  m.mat4.identity(modelMat);
-  m.mat4.translate(modelMat, [0, FLOOR_Y + SCALE, 0], modelMat);
-  m.mat4.scale(modelMat, [SCALE, SCALE, SCALE], modelMat);
-
-  const modelUniformBuffer = root
-    .createBuffer(ModelUniforms, { model: modelMat })
-    .$usage("uniform");
 
   const materialCount = slime.paletteData.length / 4;
 
@@ -81,7 +81,7 @@ export async function createSlimePipeline(
 
   const modelBindGroup = root.createBindGroup(modelLayout, {
     camera: cameraBuffer,
-    modelUniforms: modelUniformBuffer,
+    modelUniforms: { uniform: ModelUniforms },
     palette: paletteBuffer,
   });
 
