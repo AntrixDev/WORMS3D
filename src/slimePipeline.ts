@@ -14,7 +14,7 @@ function buildModelMat(px: number, py: number, pz: number, yaw: number ){
   return mat;
 }
 
-const scale = 0.5;
+const scale = 0.4;
 
 export async function createSlimePipeline(
   root: any,
