@@ -103,4 +103,106 @@ export function createInitGameState (
 }
 
 
+export class GameStateMachine {
+    state: GameState;
+    onCameraIntro?: (player: PlayerState) => void;
+    onCameraThirdPerson?: (player: PlayerState) => void;
+    onTurnEnd?: () => void;
+    onStateChanged?: (state: GameState) => void;
 
+    private introTimer: ReturnType<typeof setInterval> | null=null;
+    private turnTimer: ReturnType<typeof setInterval> | null=null;
+    private fireTimer: ReturnType<typeof setTimeout> | null=null;
+
+    constructor(players: { username: string; characterIndex?: number }[]) {
+        this.state = createInitGameState(players);
+    }
+
+    start() {
+        this.beginIntro();
+    }
+
+    private emit() {
+        this.onStateChanged?.(this.state);
+    }
+
+    private beginIntro() {
+        this.clearTimers();
+        const cur = this.currentPlayerState();
+        this.state.phase = "intro";
+        this.state.introTimeLeft = introDuration;
+        this.state.cameraMode = "intro";
+        this.state.inventoryOpen = false;
+        this.state.selectedWeapon = null;
+        this.emit();
+
+        this.onCameraIntro?.(cur);
+
+        this.introTimer = setInterval(() => {
+            this.state.introTimeLeft -= 1;
+            this.emit();
+            if (this.state.introTimeLeft <= 0) {
+                this.clearTimers();
+                this.beginPlaying();
+            }
+        }, 1000);
+    }
+
+    private beginPlaying() {
+        this.clearTimers();
+        const cur = this.currentPlayerState();
+        this.state.phase = "playing";
+        this.state.turnTimeLeft = turnDuration;
+        this.state.cameraMode = "thirdPer";
+        this.emit();
+
+        this.onCameraThirdPerson?.(cur);
+
+        this.turnTimer = setInterval(() => {
+            this.state.turnTimeLeft -= 1;
+            this.emit();
+            if (this.state.turnTimeLeft <= 0) {
+                this.clearTimers();
+                this.state.inventoryOpen = false;
+                this.advanceTurn();
+            }
+        }, 1000);
+    }
+
+
+
+    private advanceTurn() {
+        const total = this.state.players.length;
+        let next = this.state.currentPlayerIndex;
+        let tries = 0;
+        do {
+            next = (next + 1) % total;
+            tries++;
+        } while (!this.state.players[next].alive && tries < total);
+
+        this.state.currentPlayerIndex = next;
+        this.state.roundNumber += 1;
+        this.state.inventory = [...defWeapons.map(w => ({ ...w }))];
+
+        this.beginIntro();
+        this.onTurnEnd?.();
+    }
+
+    private currentPlayerState(): PlayerState {
+        return this.state.players[this.state.currentPlayerIndex];
+    }
+
+    private clearTimers() {
+        if (this.introTimer) { clearInterval(this.introTimer); this.introTimer = null; }
+        if (this.turnTimer) { clearInterval(this.turnTimer); this.turnTimer = null; }
+        if (this.fireTimer) { clearTimeout(this.fireTimer); this.fireTimer = null; }
+    }
+
+    get currentPlayer(): PlayerState {
+        return this.currentPlayerState();
+    }
+
+    get isActivePlayerTurn(): boolean {
+        return this.state.phase === "playing";
+    }
+}
