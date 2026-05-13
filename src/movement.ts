@@ -70,13 +70,13 @@ interface PhysicsBody {
   isOnGround: boolean;
 }
 
-const GRAVITY = -25;
-const JUMP_VEL =  10;
-const MOVE_ACC =  50;
-const FRICTION =  12;
-const PLAYER_RADIUS = 0.5;
-const FALL_RESET_Y = -50;
-const FALL_RESET_SPAWN_Y = 10;
+const gravity = -25;
+const jumpVel =  10;
+const moveAcc =  50;
+const friction =  12;
+const playerRadius = 0.4;
+const fallResetY = -50;
+const fallResetSpawnY = 5;
 
 
 export interface PhysicsController {
@@ -121,15 +121,15 @@ export function createMovementController(
     inputDx: number, inputDz: number,
     wantsJump: boolean
   ): [number, number, number] {
-    body.velX += inputDx * MOVE_ACC * dt;
-    body.velZ += inputDz * MOVE_ACC * dt;
+    body.velX += inputDx * moveAcc * dt;
+    body.velZ += inputDz * moveAcc * dt;
 
-    const frictionMult = Math.exp(-FRICTION * dt);
+    const frictionMult = Math.exp(-friction * dt);
     body.velX *= frictionMult;
     body.velZ *= frictionMult;
 
 
-    body.velY += GRAVITY * dt;
+    body.velY += gravity * dt;
 
     px += body.velX * dt;
     py += body.velY * dt;
@@ -138,9 +138,9 @@ export function createMovementController(
     body.isOnGround = false;
     for (let iter = 0; iter < 2; iter++) {
       const dist = getSceneSDF(px, py, pz);
-      if (dist < PLAYER_RADIUS) {
+      if (dist < playerRadius) {
         const [nx, ny, nz] = getSDFNormal(px, py, pz);
-        const penetration = PLAYER_RADIUS - dist;
+        const penetration = playerRadius - dist;
 
         px += nx * penetration;
         py += ny * penetration;
@@ -161,11 +161,11 @@ export function createMovementController(
     }
 
     if (wantsJump && body.isOnGround) {
-      body.velY = JUMP_VEL;
+      body.velY = jumpVel;
     }
 
-    if (py < FALL_RESET_Y) {
-      py = FALL_RESET_SPAWN_Y;
+    if (py < fallResetY) {
+      py = fallResetSpawnY;
       body.velY = 0;
       body.velX = 0;
       body.velZ = 0;
