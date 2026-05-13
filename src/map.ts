@@ -64,26 +64,26 @@ for(let i=0; i<arenaLayers; i++){
     addPlates(origin, size);
 }
 
-// const explX =8;
-// const explY =-9;
-// const explZ=7;
-// const explRadius = 10;
+const explX =8;
+const explY =-9;
+const explZ=7;
+const explRadius = 10;
 
-// const explArray = instanceArray.filter(({ model }) => {
-//     const tx = model[12];
-//     const ty = model[13];
-//     const tz = model[14];
+const explArray = instanceArray.filter(({ model }) => {
+    const tx = model[12];
+    const ty = model[13];
+    const tz = model[14];
 
-//     const dx = tx-explX;
-//     const dy = ty-explY;
-//     const dz = tz-explZ;
+    const dx = tx-explX;
+    const dy = ty-explY;
+    const dz = tz-explZ;
 
-//     const dist = dx*dx + dy*dy + dz*dz +1;
+    const dist = dx*dx + dy*dy + dz*dz +1;
 
-//     return dist > explRadius * explRadius;
-// });
+    return dist > explRadius * explRadius;
+});
 
-export const cubeCount = instanceArray.length;
+export const cubeCount = explArray.length;
 
 export function checkPosition(cubeIndex: number){
     let instance = instanceArray[cubeIndex];
@@ -92,7 +92,20 @@ export function checkPosition(cubeIndex: number){
 
 export function createPlateBuffer(root: any){
     return root
-    .createBuffer(d.arrayOf(cubeInstance, cubeCount), instanceArray)
+    .createBuffer(d.arrayOf(cubeInstance, cubeCount), explArray)
     .$usage("storage");
+}
+
+const activeBlocks = new Set<string>();
+
+for (const inst of explArray) {
+    const tx = Math.round(inst.model[12]);
+    const ty = Math.round(inst.model[13]);
+    const tz = Math.round(inst.model[14]);
+    activeBlocks.add(`${tx},${ty},${tz}`);
+}
+
+export function isSolidBlock(x: number, y: number, z: number): boolean {
+    return activeBlocks.has(`${Math.round(x)},${Math.round(y)},${Math.round(z)}`);
 }
 
