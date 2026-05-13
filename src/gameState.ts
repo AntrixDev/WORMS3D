@@ -17,7 +17,7 @@ export interface PlayerState {
 }
 
 export interface Weapon {
-    id: string;
+    id: number;
     name: string;
     ammo: number;
     icon: string;
@@ -36,7 +36,7 @@ export interface GameState {
     cameraMode: "intro" | "thirdPer";
 }
 
-const turnDuration = 50;
+export const turnDuration = 50;
 const introDuration = 5;
 
 const spawnMin = Math.ceil(arenaWallMin);
@@ -44,8 +44,8 @@ const spawnMax = Math.ceil(arenaWallMax);
 const spawnY = arenaFloorY + 0.5;
 
 export const defWeapons: Weapon[] = [
-    {id: "yomom", name: "yomom", ammo: 1, icon: "🚀"},
-    {id: "yodad", name: "yodad", ammo: 4, icon: "🧨"},
+    {id: 1, name: "weap1", ammo: 1, icon: "🚀"},
+    {id: 2, name: "weap2", ammo: 4, icon: "🧨"},
 ];
 
 function randomSpawnCord(): number {
