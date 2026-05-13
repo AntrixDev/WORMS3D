@@ -175,7 +175,22 @@ export class GameStateMachine {
         }, 1000);
     }
 
+    toggleInventory() {
+        if(this.state.phase !== "playing") return;
+        this.state.inventoryOpen = !this.state.inventoryOpen;
+        this.emit();
+    }
 
+    openInventory() {
+        if (this.state.phase !== "playing") return;
+        this.state.inventoryOpen = true;
+        this.emit();
+    }
+
+    closeInventory() {
+        this.state.inventoryOpen = false;
+        this.emit();
+    }
 
     private advanceTurn() {
         const total = this.state.players.length;
