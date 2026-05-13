@@ -148,6 +148,12 @@ export class GameStateMachine {
         }, 1000);
     }
 
+    skipIntro() {
+        if (this.state.phase !== "intro") return;
+        this.clearTimers();
+        this.beginPlaying();
+    }
+
     private beginPlaying() {
         this.clearTimers();
         const cur = this.currentPlayerState();
