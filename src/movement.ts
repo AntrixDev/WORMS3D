@@ -48,9 +48,9 @@ function getSceneSDF(px: number, py: number, pz: number): number {
 
 function getSDFNormal(px: number, py: number, pz: number): [number, number, number] {
   const eps = 0.01;
-  const s1 =getSceneSDF(px+ eps, py- eps, pz- eps);
-  const s2= getSceneSDF(px- eps, py- eps, pz+ eps);
-  const s3 =getSceneSDF(px-eps, py+ eps, pz- eps);
+  const s1 = getSceneSDF(px+ eps, py- eps, pz- eps);
+  const s2 = getSceneSDF(px- eps, py- eps, pz+ eps);
+  const s3 = getSceneSDF(px-eps, py+ eps, pz- eps);
   const s4 = getSceneSDF(px+ eps, py+ eps, pz+ eps);
 
   const nx= (s1- s2- s3 + s4);
@@ -59,20 +59,213 @@ function getSDFNormal(px: number, py: number, pz: number): [number, number, numb
 
   const len=Math.sqrt(nx * nx + ny * ny + nz * nz);
   if(len===0) return [0, 1, 0];
+  
   return [nx / len,ny / len,nz / len];
 }
 
-export function createMovementController(camera: ReturnType<typeof createGameCamera>) {
+interface PhysicsBody {
+  velX: number;
+  velY: number;
+  velZ: number;
+  isOnGround: boolean;
+}
+
+const GRAVITY = -25;
+const JUMP_VEL =  10;
+const MOVE_ACC =  50;
+const FRICTION =  12;
+const PLAYER_RADIUS = 0.5;
+const FALL_RESET_Y = -50;
+const FALL_RESET_SPAWN_Y = 10;
+
+
+export interface PhysicsController {
+  update(
+    dt: number,
+    players: PlayerState[],
+    activePlayerIndex: number,
+    canMove: boolean
+  ): Array<[number, number, number]>;
+
+  applyExplosion(
+    cx: number,
+    cy: number,
+    cz: number,
+    radius: number,
+    force: number,
+    players: PlayerState[]
+  ): void;
+
+    setVelocity(playerIndex: number, vx: number, vy: number, vz: number): void;
+    getVelocity(playerIndex: number): [number, number, number];
+}
+
+
+
+export function createMovementController(
+    camera: ReturnType<typeof createGameCamera>,
+    initialPlayers: PlayerState[]
+): PhysicsController {
   const activeKeys = new Set<string>();
   window.addEventListener("keydown", (e) => activeKeys.add(e.code));
   window.addEventListener("keyup", (e) => activeKeys.delete(e.code));
 
-  return {
-    update(dt: number, player: PlayerState, canMove: boolean): [number, number, number] {
-      let{ posX, posY, posZ } =player;
-      if(!canMove) return [posX, posY, posZ];
-      
-      return [posX, posY, posZ];
+  const bodies: PhysicsBody[] = initialPlayers.map(() => ({
+    velX: 0, velY: 0, velZ: 0, isOnGround: false,
+  }));
+
+  function stepBody(
+    body: PhysicsBody,
+    px: number, py: number, pz: number,
+    dt: number,
+    inputDx: number, inputDz: number,
+    wantsJump: boolean
+  ): [number, number, number] {
+    body.velX += inputDx * MOVE_ACC * dt;
+    body.velZ += inputDz * MOVE_ACC * dt;
+
+    const frictionMult = Math.exp(-FRICTION * dt);
+    body.velX *= frictionMult;
+    body.velZ *= frictionMult;
+
+
+    body.velY += GRAVITY * dt;
+
+    px += body.velX * dt;
+    py += body.velY * dt;
+    pz += body.velZ * dt;
+
+    body.isOnGround = false;
+    for (let iter = 0; iter < 2; iter++) {
+      const dist = getSceneSDF(px, py, pz);
+      if (dist < PLAYER_RADIUS) {
+        const [nx, ny, nz] = getSDFNormal(px, py, pz);
+        const penetration = PLAYER_RADIUS - dist;
+
+        px += nx * penetration;
+        py += ny * penetration;
+        pz += nz * penetration;
+
+        const dot = body.velX * nx + body.velY * ny + body.velZ * nz;
+        if (dot < 0) {
+          body.velX -= dot * nx;
+          body.velY -= dot * ny;
+          body.velZ -= dot * nz;
+        }
+
+        if (ny > 0.7) {
+          body.isOnGround = true;
+          body.velY = Math.max(body.velY, 0);
+        }
+      }
     }
+
+    if (wantsJump && body.isOnGround) {
+      body.velY = JUMP_VEL;
+    }
+
+    if (py < FALL_RESET_Y) {
+      py = FALL_RESET_SPAWN_Y;
+      body.velY = 0;
+      body.velX = 0;
+      body.velZ = 0;
+    }
+
+    return [px, py, pz];
+  }
+
+return {
+    update(dt, players, activePlayerIndex, canMove) {
+      while (bodies.length < players.length) {
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false });
+      }
+
+      const fwd = camera.getForwardDir();
+      const rgt = camera.getRightDir();
+
+      let inputDx = 0, inputDz = 0;
+      let wantsJump = false;
+
+      if (canMove) {
+        if (activeKeys.has("KeyW")) { inputDx += fwd[0]; inputDz += fwd[2]; }
+        if (activeKeys.has("KeyS")) { inputDx -= fwd[0]; inputDz -= fwd[2]; }
+        if (activeKeys.has("KeyA")) { inputDx -= rgt[0]; inputDz -= rgt[2]; }
+        if (activeKeys.has("KeyD")) { inputDx += rgt[0]; inputDz += rgt[2]; }
+
+        const len = Math.sqrt(inputDx * inputDx + inputDz * inputDz);
+        if (len > 0) { inputDx /= len; inputDz /= len; }
+
+        wantsJump = activeKeys.has("Space");
+      }
+
+      const results: Array<[number, number, number]> = [];
+
+      for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        if (!p.alive) {
+          results.push([p.posX, p.posY, p.posZ]);
+          continue;
+        }
+
+        const isActive = i === activePlayerIndex;
+        const [nx, ny, nz] = stepBody(
+          bodies[i],
+          p.posX, p.posY, p.posZ,
+          dt,
+          isActive ? inputDx  : 0,
+          isActive ? inputDz  : 0,
+          isActive ? wantsJump : false
+        );
+
+        results.push([nx, ny, nz]);
+      }
+
+      return results;
+    },
+
+    applyExplosion(cx, cy, cz, radius, force, players) {
+      while (bodies.length < players.length) {
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false });
+      }
+
+      for (let i = 0; i < players.length; i++) {
+        const p = players[i];
+        if (!p.alive) continue;
+
+        const dx = p.posX - cx;
+        const dy = p.posY - cy;
+        const dz = p.posZ - cz;
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const dist   = Math.sqrt(distSq);
+
+        if (dist > radius) continue;
+
+        const falloff  = 1 - dist / radius;
+        const impulse  = force * falloff;
+
+        if (dist < 0.001) {
+          bodies[i].velY += impulse;
+        } else {
+          bodies[i].velX += (dx / dist) * impulse;
+          bodies[i].velY += (dy / dist) * impulse;
+          bodies[i].velZ += (dz / dist) * impulse;
+        }
+
+        bodies[i].isOnGround = false;
+      }
+    },
+
+    setVelocity(playerIndex, vx, vy, vz) {
+      if (!bodies[playerIndex]) return;
+      bodies[playerIndex].velX = vx;
+      bodies[playerIndex].velY = vy;
+      bodies[playerIndex].velZ = vz;
+    },
+
+    getVelocity(playerIndex) {
+      const b = bodies[playerIndex];
+      if (!b) return [0, 0, 0];
+      return [b.velX, b.velY, b.velZ];
+    },
   };
 }
