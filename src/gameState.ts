@@ -192,6 +192,12 @@ export class GameStateMachine {
         this.emit();
     }
 
+    selectWeapon(weapon: Weapon) {
+        if(this.state.phase !== "playing") return;
+        this.state.selectedWeapon = weapon;
+        this.emit();
+    }
+
     private advanceTurn() {
         const total = this.state.players.length;
         let next = this.state.currentPlayerIndex;
@@ -211,6 +217,15 @@ export class GameStateMachine {
 
     private currentPlayerState(): PlayerState {
         return this.state.players[this.state.currentPlayerIndex];
+    }
+
+    updatePlayerPosition(playerIndex: number, x: number, y: number, z: number) {
+        const p = this.state.players[playerIndex];
+        if(p){
+            p.posX = x;
+            p.posY = y;
+            p.posZ = z;
+        }
     }
 
     private clearTimers() {
