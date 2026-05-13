@@ -73,17 +73,25 @@ export async function createSlimePipeline(
     .createBuffer(d.arrayOf(d.vec4f, materialCount), palette)
     .$usage("storage");
 
+  const playerUniforms = players.map((p)=> 
+    root
+      .createBuffer(ModelUniforms, { model: buildModelMat(p.posX, p.posY, p.posZ, 0) })
+      .$usage("uniform")
+  );
+
   const modelLayout = tgpu.bindGroupLayout({
     camera: { uniform: Camera },
     modelUniforms: { uniform: ModelUniforms },
     palette: { storage: d.arrayOf(d.vec4f) },
   });
 
-  const modelBindGroup = root.createBindGroup(modelLayout, {
-    camera: cameraBuffer,
-    modelUniforms: { uniform: ModelUniforms },
-    palette: paletteBuffer,
-  });
+  const playerBindGroup = playerUniforms.map((ub =>
+    root.createBindGroup(modelLayout, {
+        camera: cameraBuffer,
+        modelUniforms: ub,
+        palette: paletteBuffer,
+      })
+  ));
 
   const modelVertex = tgpu.vertexFn({
     in: {
@@ -124,27 +132,41 @@ export async function createSlimePipeline(
   });
 
   return {
+
+    updatePlayerPos(
+      playerIndex: number,
+      px: number,
+      py: number,
+      pz: number,
+      yaw = 0
+    ) {
+      if(!playerUniforms[playerIndex]) return;
+      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, yaw) });
+    },
+
     draw(
       msaaTexture: any, 
       depthTexture: any, 
       context: any
     ) {
-      pipeline
-        .withColorAttachment({ 
-          view: msaaTexture, 
-          resolveTarget: context, 
-          loadOp: "load" 
-        })
-        .withDepthStencilAttachment({
-          view: depthTexture,
-          depthClearValue: 1,
-          depthLoadOp: "load",
-          depthStoreOp: "store"
-        })
-        .with(modelVertexLayout, modelVertexBuffer)
-        .with(modelBindGroup)
-        .withIndexBuffer(modelIndexBuffer)
-        .drawIndexed(slime.indexCount);
+      for(let i=0; i< players.length; i++){
+        pipeline
+          .withColorAttachment({ 
+            view: msaaTexture, 
+            resolveTarget: context, 
+            loadOp: "load" 
+          })
+          .withDepthStencilAttachment({
+            view: depthTexture,
+            depthClearValue: 1,
+            depthLoadOp: "load",
+            depthStoreOp: "store"
+          })
+          .with(modelVertexLayout, modelVertexBuffer)
+          .with(playerBindGroup[i])
+          .withIndexBuffer(modelIndexBuffer)
+          .drawIndexed(slime.indexCount);
+      }
     },
   };
 }
