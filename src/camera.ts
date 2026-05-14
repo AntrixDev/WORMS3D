@@ -38,7 +38,7 @@ export function createGameCamera(
     yaw: 0,
     pitch: 0.25,
     distance: 4,
-    height: 1.5,
+    height: 1,
   };
 
   let mode: "intro" | "third-person" = "intro";

@@ -191,14 +191,26 @@ export async function startGame(playerData: Player[]) {
       const [nx, ny, nz] = newPositions[i];
       const p = state.players[i];
 
-      if (nx !== p.posX || ny !== p.posY || nz !== p.posZ) {
-        gsm.updatePlayerPosition(p.index, nx, ny, nz);
-        slime.updatePlayerPos(p.index, nx, ny - 0.1, nz, gameCam.getYaw());
+      const isActive = p.index === state.currentPlayerIndex;
+      const currentYaw = isActive ? gameCam.getYaw() : p.yaw;
 
-        if (p.index === state.currentPlayerIndex) {
+      const positionChanged = nx !== p.posX || ny !== p.posY || nz !== p.posZ;
+      const yawChanged = currentYaw !== p.yaw;
+
+      if (positionChanged || yawChanged) {
+        if (positionChanged) {
+          gsm.updatePlayerPosition(p.index, nx, ny, nz);
+        }
+
+        p.yaw = currentYaw;
+
+        slime.updatePlayerPos(p.index, nx, ny - 0.1, nz, p.yaw);
+
+        if (isActive) {
           gameCam.updatePlayerPos(nx, ny, nz);
         }
       }
+      
     }
 
     drawCubes();

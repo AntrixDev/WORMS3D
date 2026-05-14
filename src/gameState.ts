@@ -13,6 +13,7 @@ export interface PlayerState {
     posX: number;
     posY: number;
     posZ: number;
+    yaw: number;
     alive: boolean;
 }
 
@@ -85,6 +86,7 @@ export function createInitGameState (
         posX: spawns[i].x,
         posY: spawnY,
         posZ: spawns[i].z,
+        yaw: 0,
         alive: true,
     }));
 
