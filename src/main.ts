@@ -193,7 +193,7 @@ export async function startGame(playerData: Player[]) {
 
       if (nx !== p.posX || ny !== p.posY || nz !== p.posZ) {
         gsm.updatePlayerPosition(p.index, nx, ny, nz);
-        slime.updatePlayerPos(p.index, nx, ny, nz, gameCam.getYaw());
+        slime.updatePlayerPos(p.index, nx, ny - 0.1, nz, gameCam.getYaw());
 
         if (p.index === state.currentPlayerIndex) {
           gameCam.updatePlayerPos(nx, ny, nz);
