@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { GameState, PlayerState, Weapon } from "../gameState";
 import "./gameUI.css"
 import { turnDuration } from "../gameState"
@@ -14,7 +14,7 @@ function IntroOverlay({ player, timeLeft, onSkip }: { player: PlayerState; timeL
 
   return (
     <div className="intro-overlay">
-      <div className="intro-card" style={{ borderColor: primaryColor}}>
+      <div className="intro-card">
         <div className="intro-center-text">
           <div className="intro-username" style={{ color: primaryColor}}>{player.username}</div>
           <div className="intro-catchphrase">PREPARE FOR THE SUGAR RUSH</div>
@@ -39,7 +39,7 @@ function TurnUI({ player, turnTimeLeft }: { player: PlayerState; turnTimeLeft: n
     <div className="turn">
       <div className="timer-box">
         <svg width="80" height="80" viewBox="0 0 80 80">
-          <circle cx="40" cy="40" r={circleR} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
+          <circle cx="40" cy="40" r={circleR} fill="none" stroke="rgba(0, 0, 0, 0.08)" strokeWidth="6" />
           <circle
             cx="40" cy="40" r={circleR} fill="none" stroke={timerColor} strokeWidth="6"
             strokeDasharray={circleC} strokeDashoffset={circleC * (1 - turnTimeLeft / turnDuration)}
@@ -50,13 +50,40 @@ function TurnUI({ player, turnTimeLeft }: { player: PlayerState; turnTimeLeft: n
         </svg>
       </div>
       <div className="player-info">
-        <div className="username" style={{ color: 'black'}}>{player.username}</div>
+      <div className="username">{player.username}</div>
         <div className="hp-row">
           <div className="hp-track">
             <div className="hp-fill" style={{ width: `${hpPct}%`, backgroundColor: hpColor, transition: "width 0.5s, background-color 0.5s" }} />
           </div>
           <span className="hp-value">{hpPct}</span>
          </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayerList({ players, currentPlayerIndex }: { players: PlayerState[]; currentPlayerIndex: number }) {
+  return (
+    <div className="playerlist-overlay">
+      <div className="playerlist-panel">
+        <div className="playerlist-title">PLAYERS</div>
+        {players.map((p, i) => {
+          const isActive = i === currentPlayerIndex;
+          const hpColor = !p.alive ? "#880000" : p.hp < 30 ? "#ff9100" : primaryColor;
+          return (
+            <div
+              key={p.index}
+              className={`playerlist-row ${!p.alive ? "playerlist-row--dead" : ""} ${isActive ? "playerlist-row--active" : ""}`}
+              style={isActive ? { borderLeft: `3px solid ${primaryColor}` } : {}}
+            >
+              <span className="playerlist-status">{p.alive ? "●" : "✕"}</span>
+              <span className="playerlist-name">{p.username}</span>
+              <span className="playerlist-hp" style={{ color: hpColor }}>
+                {p.alive ? `${p.hp} HP` : "DEAD"}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -91,7 +118,7 @@ function InventoryPanel({ inventory, selected, onSelect, onClose }: { inventory:
 function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOpenInventory: () => void }) {
   return (
     <div className="weapon-hud" onClick={onOpenInventory}>
-      <div className="weapon-hud-slot" style={{ borderRight: `6px solid ${primaryColor}` }}>
+      <div className="weapon-hud-slot" style={{ borderRight: `4px solid ${primaryColor}`, borderBottom: `4px solid ${primaryColor}` }}>
         {selected ? (
           <>
             <span style={{ fontSize: 32 }}>{selected.icon}</span>
@@ -109,12 +136,21 @@ function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOp
 export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void }) {
   const { phase, players, currentPlayerIndex, turnTimeLeft, introTimeLeft, selectedWeapon, inventory, inventoryOpen } = gameState;
   const currentPlayer = players[currentPlayerIndex];
+  const [showPlayerList, setShowPlayerList] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.code === "KeyQ" && phase === "playing") onToggleInventory(); };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [phase, onToggleInventory]);
+
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => { if (e.code === "Tab" || e.code === "KeyT") { e.preventDefault(); setShowPlayerList(true); } };
+    const onUp = (e: KeyboardEvent) => { if (e.code === "Tab" || e.code === "KeyT") setShowPlayerList(false); };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
+  }, []);
 
   return (
     <div className="hud-container">
@@ -129,6 +165,7 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
           )}
         </>
       )}
+      {showPlayerList && <PlayerList players={players} currentPlayerIndex={currentPlayerIndex} />}
     </div>
   );
 }
