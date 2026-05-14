@@ -24,6 +24,7 @@ function PlayersMenu() {
   }
 
   function updateName(index: number, value: string) {
+    if(value.length >30 ) value = value.slice(0, 30);
     setPlayers(prev => prev.map((p, i) => i === index ? { ...p, username: value } : p))
   }
 
