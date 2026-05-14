@@ -71,9 +71,9 @@ interface PhysicsBody {
 }
 
 const gravity = -25;
-const jumpVel =  10;
-const moveAcc =  50;
-const friction =  12;
+const jumpVel = 10;
+const moveAcc = 50;
+const friction = 12;
 const playerRadius = 0.4;
 const fallResetY = -50;
 const fallResetSpawnY = 5;
@@ -208,16 +208,77 @@ return {
         }
 
         const isActive = i === activePlayerIndex;
-        const [nx, ny, nz] = stepBody(
+        results.push(stepBody(
           bodies[i],
           p.posX, p.posY, p.posZ,
           dt,
           isActive ? inputDx  : 0,
           isActive ? inputDz  : 0,
           isActive ? wantsJump : false
-        );
+        ));
+      }
 
-        results.push([nx, ny, nz]);
+      const minDist = playerRadius * 2;
+      for (let iter = 0; iter < 2; iter++) {
+        for (let i = 0; i < players.length; i++) {
+          if (!players[i].alive) continue;
+          for (let j = i + 1; j < players.length; j++) {
+            if (!players[j].alive) continue;
+
+            const p1 = results[i];
+            const p2 = results[j];
+            const dx = p2[0] - p1[0];
+            const dy = p2[1] - p1[1];
+            const dz = p2[2] - p1[2];
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < minDist * minDist && distSq > 0.0001) {
+              const dist = Math.sqrt(distSq);
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const nz = dz / dist;
+              const penetration = (minDist - dist) * 0.5;
+
+              p1[0] -= nx * penetration;
+              p1[1] -= ny * penetration;
+              p1[2] -= nz * penetration;
+              p2[0] += nx * penetration;
+              p2[1] += ny * penetration;
+              p2[2] += nz * penetration;
+
+              const b1 = bodies[i];
+              const b2 = bodies[j];
+              const relVelX = b2.velX - b1.velX;
+              const relVelY = b2.velY - b1.velY;
+              const relVelZ = b2.velZ - b1.velZ;
+              const sepVel = relVelX * nx + relVelY * ny + relVelZ * nz;
+
+              if (sepVel < 0) {
+                const restitution = 0.6;
+                const impulse = -sepVel * (1 + restitution) * 0.5;
+                b1.velX -= nx * impulse;
+                b1.velY -= ny * impulse;
+                b1.velZ -= nz * impulse;
+                b2.velX += nx * impulse;
+                b2.velY += ny * impulse;
+                b2.velZ += nz * impulse;
+              }
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < results.length; i++) {
+        if (!players[i].alive) continue;
+        const p = results[i];
+        const dist = getSceneSDF(p[0], p[1], p[2]);
+        if (dist < playerRadius) {
+          const [nx, ny, nz] = getSDFNormal(p[0], p[1], p[2]);
+          const penetration = playerRadius - dist;
+          p[0] += nx * penetration;
+          p[1] += ny * penetration;
+          p[2] += nz * penetration;
+        }
       }
 
       return results;
