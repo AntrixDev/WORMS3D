@@ -5,16 +5,41 @@ import { ModelUniforms } from "./modelSchema";
 import { loadGLBModel } from "./modelLoader";
 import type { PlayerState } from "./gameState";
 
-function buildModelMat(px: number, py: number, pz: number, yaw: number ){
+const physicsRadius = 0.4;
+const targetDiameter = 1.2;
+
+function buildModelMat(px: number, py: number, pz: number, yaw: number, groundOffset: number, scale: number ){
   const mat = d.mat4x4f();
   m.mat4.identity(mat);
-  m.mat4.translate(mat, [px, py, pz], mat);
-  m.mat4.rotateY(mat, yaw - Math.PI / 2, mat);
+  m.mat4.translate(mat, [px, py - physicsRadius, pz], mat);
+  m.mat4.rotateY(mat, yaw + Math.PI, mat);
   m.mat4.scale(mat, [scale, scale, scale], mat);
+  m.mat4.translate(mat, [0, -groundOffset, 0], mat);
   return mat;
 }
 
-const scale = 0.4;
+function splitAlphaIndices(
+  indices:     Uint32Array,
+  materialIds: Uint32Array,
+  alphaFlags:  Uint8Array,
+): { opaque: Uint32Array; alpha: Uint32Array } {
+  const opaqueList: number[] = [];
+  const alphaList:  number[] = [];
+
+  for (let i = 0; i < indices.length; i += 3) {
+    const matId = materialIds[indices[i]];
+    if (alphaFlags[matId]) {
+      alphaList.push(indices[i], indices[i+1], indices[i+2]);
+    } else {
+      opaqueList.push(indices[i], indices[i+1], indices[i+2]);
+    }
+  }
+
+  return {
+    opaque: new Uint32Array(opaqueList),
+    alpha:  new Uint32Array(alphaList),
+  };
+}
 
 export async function createSlimePipeline(
   root: any,
@@ -23,6 +48,25 @@ export async function createSlimePipeline(
   players: PlayerState[],
 ) {
   const slime = await loadGLBModel("/assets/slime.glb");
+
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < slime.vertexCount; i++) {
+    const x = slime.positions[i*3+0];
+    const y = slime.positions[i*3+1];
+    const z = slime.positions[i*3+2];
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+  }
+  const extentX = maxX - minX;
+  const extentY = maxY - minY;
+  const extentZ = maxZ - minZ;
+  const maxExtent = Math.max(extentX, extentY, extentZ) || 1;
+  const scaleFactor = targetDiameter / maxExtent;
+
+  const groundOffset = slime.groundOffset;
 
   const ModelVertexData = d.struct({
     position: d.vec3f,
@@ -40,6 +84,22 @@ export async function createSlimePipeline(
     normal: slime.normals,
     materialId: slime.materialIds,
   });
+
+  const { opaque: opaqueIndices, alpha: alphaIndices } = splitAlphaIndices(
+    slime.indices,
+    slime.materialIds,
+    slime.alphaFlags,
+  );
+
+  const opaqueIndexBuffer = root
+    .createBuffer(d.arrayOf(d.u32, opaqueIndices.length), Array.from(opaqueIndices))
+    .$usage("index");
+
+  const alphaIndexBuffer = opaqueIndices.length > 0 && alphaIndices.length > 0
+    ? root
+        .createBuffer(d.arrayOf(d.u32, alphaIndices.length), Array.from(alphaIndices))
+        .$usage("index")
+    : null;
 
   const modelIndexBuffer = root
     .createBuffer(d.arrayOf(d.u32, slime.indexCount), Array.from(slime.indices))
@@ -75,7 +135,7 @@ export async function createSlimePipeline(
 
   const playerUniforms = players.map((p)=> 
     root
-      .createBuffer(ModelUniforms, { model: buildModelMat(p.posX, p.posY, p.posZ, 0) })
+      .createBuffer(ModelUniforms, { model: buildModelMat(p.posX, p.posY, p.posZ, 0, groundOffset, scaleFactor) })
       .$usage("uniform")
   );
 
@@ -115,6 +175,26 @@ export async function createSlimePipeline(
     return { pos, color: modelLayout.$.palette[input.materialId] };
   });
 
+  const modelFragment = tgpu.fragmentFn({
+    in:  { color: d.vec4f },
+    out: d.vec4f,
+  })((i) => i.color);
+
+  const opaquePipeline = root.createRenderPipeline({
+    attribs:  { ...modelVertexLayout.attrib },
+    vertex:   modelVertex,
+    fragment: modelFragment,
+    targets:  { format: presentationFormat },
+    depthStencil: {
+      format:            "depth24plus",
+      depthWriteEnabled: true,
+      depthCompare:      "less",
+    },
+    multisample: { count: 4 },
+  });
+
+
+
   const pipeline = root.createRenderPipeline({
     attribs: { ...modelVertexLayout.attrib },
     vertex: modelVertex,
@@ -131,6 +211,35 @@ export async function createSlimePipeline(
     multisample: { count: 4 },
   });
 
+  const alphaPipeline = alphaIndexBuffer
+    ? root.createRenderPipeline({
+        attribs:  { ...modelVertexLayout.attrib },
+        vertex:   modelVertex,
+        fragment: modelFragment,
+        targets: {
+          format: presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        },
+        depthStencil: {
+          format:            "depth24plus",
+          depthWriteEnabled: false,
+          depthCompare:      "less",
+        },
+        multisample: { count: 4 },
+      })
+    : null;
+
   return {
 
     updatePlayerPos(
@@ -141,7 +250,7 @@ export async function createSlimePipeline(
       yaw = 0
     ) {
       if(!playerUniforms[playerIndex]) return;
-      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, yaw) });
+      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, yaw, groundOffset, scaleFactor) });
     },
 
     draw(
@@ -150,22 +259,41 @@ export async function createSlimePipeline(
       context: any
     ) {
       for(let i=0; i< players.length; i++){
-        pipeline
-          .withColorAttachment({ 
-            view: msaaTexture, 
-            resolveTarget: context, 
-            loadOp: "load" 
+        opaquePipeline
+          .withColorAttachment({
+            view:          msaaTexture,
+            resolveTarget: context,
+            loadOp:        "load",
           })
           .withDepthStencilAttachment({
-            view: depthTexture,
+            view:            depthTexture,
             depthClearValue: 1,
-            depthLoadOp: "load",
-            depthStoreOp: "store"
+            depthLoadOp:     "load",
+            depthStoreOp:    "store",
           })
           .with(modelVertexLayout, modelVertexBuffer)
           .with(playerBindGroup[i])
           .withIndexBuffer(modelIndexBuffer)
-          .drawIndexed(slime.indexCount);
+          .drawIndexed(opaqueIndices.length);
+
+          if (alphaPipeline && alphaIndexBuffer) {
+          alphaPipeline
+            .withColorAttachment({
+              view:          msaaTexture,
+              resolveTarget: context,
+              loadOp:        "load",
+            })
+            .withDepthStencilAttachment({
+              view:            depthTexture,
+              depthClearValue: 1,
+              depthLoadOp:     "load",
+              depthStoreOp:    "store",
+            })
+            .with(modelVertexLayout, modelVertexBuffer)
+            .with(playerBindGroup[i])
+            .withIndexBuffer(alphaIndexBuffer)
+            .drawIndexed(alphaIndices.length);
+        }
       }
     },
   };

@@ -3,12 +3,14 @@ import { GLBLoader } from '@loaders.gl/gltf';
 import * as m from 'wgpu-matrix';
 
 const GLTF_COMPONENT_TYPE = {
+  UNSIGNED_BYTE:  5121,
   UNSIGNED_SHORT: 5123,
   UNSIGNED_INT: 5125,
   FLOAT: 5126,
 } as const;
 
 const COMPONENT_SIZES: Record<number, number> = {
+  [GLTF_COMPONENT_TYPE.UNSIGNED_BYTE]: 2,
   [GLTF_COMPONENT_TYPE.UNSIGNED_SHORT]: 2,
   [GLTF_COMPONENT_TYPE.UNSIGNED_INT]: 4,
   [GLTF_COMPONENT_TYPE.FLOAT]: 4,
@@ -16,62 +18,86 @@ const COMPONENT_SIZES: Record<number, number> = {
 
 const TYPE_COMPONENTS: Record<string, number> = {
   SCALAR: 1,
-  VEC3: 3,
+  VEC2:   2,
+  VEC3:   3,
+  VEC4:   4,
+  MAT2:   4,
+  MAT3:   9,
+  MAT4:   16,
 };
 
 const TYPED_ARRAYS: Record<number, any> = {
+  [GLTF_COMPONENT_TYPE.UNSIGNED_BYTE]: Uint8Array,
   [GLTF_COMPONENT_TYPE.UNSIGNED_SHORT]: Uint16Array,
   [GLTF_COMPONENT_TYPE.UNSIGNED_INT]: Uint32Array,
   [GLTF_COMPONENT_TYPE.FLOAT]: Float32Array,
 };
 
-function mat4Mul(a: Float32Array, b: Float32Array): Float32Array {
+function trsToMat4(
+  t: number[] = [0, 0, 0],
+  r: number[] = [0, 0, 0, 1],
+  s: number[] = [1, 1, 1],
+): Float32Array {
   const out = new Float32Array(16);
-  m.mat4.multiply(a, b, out);
+  m.mat4.fromQuat(r as any, out);
+
+  out[0]  *= s[0]; out[1]  *= s[0]; out[2]  *= s[0];
+  out[4]  *= s[1]; out[5]  *= s[1]; out[6]  *= s[1];
+  out[8]  *= s[2]; out[9]  *= s[2]; out[10] *= s[2];
+
+  out[12] = t[0]; out[13] = t[1]; out[14] = t[2]; out[15] = 1;
   return out;
 }
 
+
+
 function computeWorldMatrices(nodes: any[]): Float32Array[] {
-  const localMats: Float32Array[] = nodes.map((node) => {
+  const n = nodes.length;
+
+  const local: Float32Array[] = nodes.map((node) => {
     if (node.matrix) {
       return new Float32Array(node.matrix);
     }
-    const t = node.translation ?? [0, 0, 0];
-    const r = node.rotation    ?? [0, 0, 0, 1];
-    const s = node.scale       ?? [1, 1, 1];
-    const mat = new Float32Array(16);
-    m.mat4.identity(mat);
-    m.mat4.fromQuat(r, mat);
-    mat[12] = t[0]; mat[13] = t[1]; mat[14] = t[2];
-    const scaleMat = new Float32Array(16);
-    m.mat4.scaling(s, scaleMat);
-    m.mat4.multiply(mat, scaleMat, mat);
-    return mat;
+    return trsToMat4(node.translation, node.rotation, node.scale);
   });
 
-  const worldMats: Float32Array[] = nodes.map(() => new Float32Array(16).fill(0));
-  const identity = new Float32Array(16);
-  m.mat4.identity(identity);
+  const world: Float32Array[] = Array.from({ length: n }, () => new Float32Array(16));
+  const visited = new Uint8Array(n);
 
-  const parentOf = new Int32Array(nodes.length).fill(-1);
+  const parent = new Int32Array(n).fill(-1);
   nodes.forEach((node, i) => {
-    (node.children ?? []).forEach((c: number) => { parentOf[c] = i; });
+    (node.children ?? []).forEach((c: number) => { parent[c] = i; });
   });
 
-  function getWorld(i: number): Float32Array {
-    if (worldMats[i][0] !== 0 || worldMats[i][5] !== 0) return worldMats[i];
-    const p = parentOf[i];
-    const parentWorld = p === -1 ? identity : getWorld(p);
-    mat4Mul(parentWorld, localMats[i]);
-    m.mat4.multiply(parentWorld, localMats[i], worldMats[i]);
-    return worldMats[i];
+  function visit(i: number) {
+    if (visited[i]) return;
+    const p = parent[i];
+    if (p !== -1) visit(p);
+    if (p === -1) {
+      world[i].set(local[i]);
+    } else {
+      m.mat4.multiply(world[p], local[i], world[i]);
+    }
+    visited[i] = 1;
   }
 
-  nodes.forEach((_, i) => getWorld(i));
-  return worldMats;
+  for (let i = 0; i < n; i++) visit(i);
+  return world;
 }
 
-export async function loadGLBModel(path: string){
+export interface ModelData {
+  positions: Float32Array;
+  normals: Float32Array;
+  materialIds: Uint32Array;
+  indices: Uint32Array;
+  paletteData: Float32Array;   
+  alphaFlags: Uint8Array;     
+  vertexCount: number;
+  indexCount: number;
+  groundOffset: number;
+}
+
+export async function loadGLBModel(path: string): Promise<ModelData>{
   const model = await load(path, GLBLoader);
   const { arrayBuffer, byteOffset, byteLength } = model.binChunks[0];
   const binChunk = arrayBuffer.slice(byteOffset, byteOffset + byteLength);
@@ -84,19 +110,42 @@ export async function loadGLBModel(path: string){
     nodes
   } = model.json;
 
-  const paletteData = new Float32Array(materials.length * 4);
-  materials.forEach((mat: any, idx: number) => {
-    const color = mat.pbrMetallicRoughness?.baseColorFactor || [1.0, 1.0, 1.0, 1.0];
+  const matCount = (materials ?? []).length || 1;
+  const paletteData = new Float32Array(matCount * 4);
+  const alphaFlags  = new Uint8Array(matCount);
+
+  (materials ?? []).forEach((mat: any, idx: number) => {
+    const pbr   = mat.pbrMetallicRoughness ?? {};
+    const color = pbr.baseColorFactor ?? [1, 1, 1, 1];
     paletteData.set(color, idx * 4);
+    if (mat.alphaMode === 'BLEND' || mat.alphaMode === 'MASK') {
+      alphaFlags[idx] = 1;
+    }
   });
 
-  const getTypedArray = (idx: number) => {
-    const acc = accessors[idx];
+  function getTypedArray(idx: number): Float32Array | Uint16Array | Uint32Array | Uint8Array {
+    const acc  = accessors[idx];
     const view = bufferViews[acc.bufferView];
-    const offset = (view.byteOffset || 0) + (acc.byteOffset || 0);
-    const length = acc.count * TYPE_COMPONENTS[acc.type] * COMPONENT_SIZES[acc.componentType];
-    return new TYPED_ARRAYS[acc.componentType](binChunk.slice(offset, offset + length));
-  };
+    const compCount  = TYPE_COMPONENTS[acc.type]      ?? 1;
+    const compSize   = COMPONENT_SIZES[acc.componentType] ?? 4;
+    const byteStride = view.byteStride;
+
+    const baseOffset = (view.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+    const TypedArray = TYPED_ARRAYS[acc.componentType] ?? Float32Array;
+
+    if (byteStride && byteStride !== compCount * compSize) {
+      const flat = new TypedArray(acc.count * compCount);
+      for (let i = 0; i < acc.count; i++) {
+        const elemOffset = baseOffset + i * byteStride;
+        const src = new TypedArray(binChunk, elemOffset, compCount);
+        flat.set(src, i * compCount);
+      }
+      return flat;
+    }
+
+    const totalBytes = acc.count * compCount * compSize;
+    return new TypedArray(binChunk.slice(baseOffset, baseOffset + totalBytes));
+  }
 
   const worldMats = computeWorldMatrices(nodes);
 
@@ -119,18 +168,35 @@ export async function loadGLBModel(path: string){
   let totalIndices = 0;
 
   meshes.forEach((mesh: any, meshIdx: number) => {
-    const worldMat = meshWorldMat.get(meshIdx) ?? (() => {
-      const id = new Float32Array(16); m.mat4.identity(id); return id;
-    })();
+    const ident = new Float32Array(16); m.mat4.identity(ident);
+    const worldMat = meshWorldMat.get(meshIdx) ?? ident;
 
     for (const prim of mesh.primitives) {
+      if(prim.attributes.POSITION == undefined) continue;
+
       const pos = getTypedArray(prim.attributes.POSITION) as Float32Array;
-      const norm = getTypedArray(prim.attributes.NORMAL) as Float32Array;
-      const indices = getTypedArray(prim.indices) as Uint16Array;
+      const norm = prim.attributes.NORMAL !== undefined ? getTypedArray(prim.attributes.NORMAL) as Float32Array : new Float32Array((pos.length / 3) * 3);
+      let indices: Uint32Array;
 
+      if (prim.indices !== undefined) {
+        const raw = getTypedArray(prim.indices);
+        if (raw instanceof Uint32Array) {
+          indices = raw;
+        } else {
+          indices = new Uint32Array(raw.length);
+          for (let i = 0; i < raw.length; i++) indices[i] = raw[i];
+        }
+      } else {
+        const vc = pos.length / 3;
+        indices = new Uint32Array(vc);
+        for (let i = 0; i < vc; i++) indices[i] = i;
+      }
+
+
+
+      const matId = prim.material ?? 0;
       const vertCount = pos.length / 3;
-
-      const materialIdArray = new Uint32Array(vertCount);
+      const materialIdArray = new Uint32Array(vertCount).fill(matId);
       materialIdArray.fill(prim.material ?? 0);
 
       primitiveData.push({
@@ -149,11 +215,14 @@ export async function loadGLBModel(path: string){
   const positions = new Float32Array(totalVerts * 3);
   const normals = new Float32Array(totalVerts * 3);
   const materialIds = new Uint32Array(totalVerts);
-  const finalIndices = new Uint16Array(totalIndices);
+  const finalIndices = new Uint32Array(totalIndices);
 
   let vOff = 0;
   let iOff = 0;
   let baseVertex = 0;
+
+  let minY = Infinity;
+  let maxY = -Infinity;
 
   for (const { pos, norm, materialId, indices, worldMat } of primitiveData) {
     const count = pos.length / 3;
@@ -167,6 +236,9 @@ export async function loadGLBModel(path: string){
       positions[(vOff+i)*3+0] = wx;
       positions[(vOff+i)*3+1] = wy;
       positions[(vOff+i)*3+2] = wz;
+
+      if (wy < minY) minY = wy;
+      if (wy > maxY) maxY = wy;
 
       const nx = norm[i*3], ny = norm[i*3+1], nz = norm[i*3+2];
       let nnx = worldMat[0]*nx + worldMat[4]*ny + worldMat[8]*nz;
@@ -189,13 +261,17 @@ export async function loadGLBModel(path: string){
     baseVertex += count;
   }
 
+  const groundOffset = minY;
+
   return {
     positions,
     normals,
     materialIds,
     indices: finalIndices,
     paletteData,
+    alphaFlags,
     vertexCount: totalVerts,
     indexCount: totalIndices,
+    groundOffset
   };
 }
