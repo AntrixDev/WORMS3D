@@ -49,7 +49,7 @@ function PlayersMenu() {
                     <button id='btnDel' onClick={() => removePlayer(index)}>✗</button>
                   )}
                 </div>
-                <input type="text" className="usernameInput" id={`player-${index}`} value={player.username} onChange={e => updateName(index, e.target.value)}/>
+                <input type="text" className="usernameInput" id={`player-${index}`} value={player.username} onChange={e => updateName(index, e.target.value)} maxLength={30}/>
                 <div id='characterPlaceholder'>
                   <p className='characterArrows'>&lt;</p>
                   <img src={character} alt="Slime character" draggable='false'/>
