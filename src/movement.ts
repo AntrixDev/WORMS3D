@@ -118,8 +118,7 @@ export function createMovementController(
     body: PhysicsBody,
     px: number, py: number, pz: number,
     dt: number,
-    inputDx: number, inputDz: number,
-    wantsJump: boolean
+    inputDx: number, inputDz: number
   ): [number, number, number] {
     body.velX += inputDx * moveAcc * dt;
     body.velZ += inputDz * moveAcc * dt;
@@ -158,10 +157,6 @@ export function createMovementController(
           body.velY = Math.max(body.velY, 0);
         }
       }
-    }
-
-    if (wantsJump && body.isOnGround) {
-      body.velY = jumpVel;
     }
 
     if (py < fallResetY) {
@@ -213,8 +208,7 @@ return {
           p.posX, p.posY, p.posZ,
           dt,
           isActive ? inputDx  : 0,
-          isActive ? inputDz  : 0,
-          isActive ? wantsJump : false
+          isActive ? inputDz  : 0
         ));
       }
 
@@ -248,6 +242,13 @@ return {
 
               const b1 = bodies[i];
               const b2 = bodies[j];
+              
+              if (ny > 0.5) {
+                  b2.isOnGround = true;
+              } else if (ny < -0.5) {
+                  b1.isOnGround = true;
+              }
+
               const relVelX = b2.velX - b1.velX;
               const relVelY = b2.velY - b1.velY;
               const relVelZ = b2.velZ - b1.velZ;
@@ -278,7 +279,17 @@ return {
           p[0] += nx * penetration;
           p[1] += ny * penetration;
           p[2] += nz * penetration;
+          
+          if (ny > 0.7) {
+              bodies[i].isOnGround = true;
+          }
         }
+      }
+
+      if (canMove && wantsJump && bodies[activePlayerIndex]) {
+          if (bodies[activePlayerIndex].isOnGround) {
+              bodies[activePlayerIndex].velY = jumpVel;
+          }
       }
 
       return results;
