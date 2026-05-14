@@ -18,7 +18,7 @@ function sdBox(p: number[], b: number[]): number {
   return outDist + inDist;
 }
 
-function getSceneSDF(px: number, py: number, pz: number): number { 
+export function getSceneSDF(px: number, py: number, pz: number): number { 
   let minDist = Infinity;
   const cx = Math.round(px);
   const cy = Math.round(py);
