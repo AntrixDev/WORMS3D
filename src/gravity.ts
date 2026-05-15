@@ -8,6 +8,10 @@ export interface GravityState{
 const faceGravity: GravityState[] = [
     { down: m.vec3.create(0, -1, 0), label: "floor " }, 
     { down: m.vec3.create(0,  1, 0), label: "ceiling" },
+    { down: m.vec3.create(-1,  0, 0), label: "left" },
+    { down: m.vec3.create(+1,  0, 0), label: "right" },
+    { down: m.vec3.create(0,  0, -1), label: "back" },
+    { down: m.vec3.create(0,  0, 1), label: "front" },
 ]
 
 const defaultGravity: GravityState = {

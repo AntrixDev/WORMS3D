@@ -46,7 +46,7 @@ function addPlates(origin: number, plateSize: number){
 
 }
 
-export const arenaLayers = 13;
+export const arenaLayers = 4;
 export const arenaInnerSize = 20;
 
 const innerOrigin = -(arenaInnerSize/2);
@@ -64,10 +64,10 @@ for(let i=0; i<arenaLayers; i++){
     addPlates(origin, size);
 }
 
-const explX =8;
-const explY =-9;
-const explZ=7;
-const explRadius = 10;
+const explX =0;
+const explY =-10;
+const explZ=0;
+const explRadius = 6;
 
 const explArray = instanceArray.filter(({ model }) => {
     const tx = model[12];
