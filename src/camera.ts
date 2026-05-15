@@ -143,6 +143,9 @@ export function createGameCamera(
     getYaw(): number {
       return tpc.yaw;
     },
+    getPitch(): number {
+      return tpc.pitch;
+    },
     getForwardDir(): [number, number, number] {
       return [-Math.sin(tpc.yaw), 0, -Math.cos(tpc.yaw)];
     },
