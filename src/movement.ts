@@ -1,9 +1,10 @@
 import { isSolidBlock } from "./map";
 import { createGameCamera } from "./camera";
 import type { PlayerState } from "./gameState";
+import type { GravityController } from "./gravity";
+import * as m from "wgpu-matrix";
 
-function sdBox(p: number[], b: number[]): number {
-
+function sdBox(p: number[] | m.Vec3, b: number[]): number {
   const dx = Math.abs(p[0]) - b[0];
   const dy = Math.abs(p[1]) - b[1];
   const dz = Math.abs(p[2]) - b[2];
@@ -46,7 +47,7 @@ export function getSceneSDF(px: number, py: number, pz: number): number {
   return minDist;
 }
 
-function getSDFNormal(px: number, py: number, pz: number): [number, number, number] {
+function getSDFNormal(px: number, py: number, pz: number): m.Vec3 {
   const eps = 0.01;
   const s1 = getSceneSDF(px+ eps, py- eps, pz- eps);
   const s2 = getSceneSDF(px- eps, py- eps, pz+ eps);
@@ -58,9 +59,9 @@ function getSDFNormal(px: number, py: number, pz: number): [number, number, numb
   const nz= (-s1+ s2- s3 + s4);
 
   const len=Math.sqrt(nx * nx + ny * ny + nz * nz);
-  if(len===0) return [0, 1, 0];
+  if(len===0) return m.vec3.create(0, 1, 0);
   
-  return [nx / len,ny / len,nz / len];
+  return m.vec3.create(nx / len, ny / len, nz / len);
 }
 
 interface PhysicsBody {
@@ -70,7 +71,6 @@ interface PhysicsBody {
   isOnGround: boolean;
 }
 
-const gravity = -25;
 const jumpVel = 10;
 const moveAcc = 50;
 const friction = 12;
@@ -85,7 +85,7 @@ export interface PhysicsController {
     players: PlayerState[],
     activePlayerIndex: number,
     canMove: boolean
-  ): Array<[number, number, number]>;
+  ): Array<m.Vec3>;
 
   applyExplosion(
     cx: number,
@@ -97,14 +97,15 @@ export interface PhysicsController {
   ): void;
 
     setVelocity(playerIndex: number, vx: number, vy: number, vz: number): void;
-    getVelocity(playerIndex: number): [number, number, number];
+    getVelocity(playerIndex: number): m.Vec3;
 }
 
 
 
 export function createMovementController(
     camera: ReturnType<typeof createGameCamera>,
-    initialPlayers: PlayerState[]
+    initialPlayers: PlayerState[],
+    gravityController: GravityController
 ): PhysicsController {
   const activeKeys = new Set<string>();
   window.addEventListener("keydown", (e) => activeKeys.add(e.code));
@@ -118,21 +119,35 @@ export function createMovementController(
     body: PhysicsBody,
     px: number, py: number, pz: number,
     dt: number,
-    inputDx: number, inputDz: number
-  ): [number, number, number] {
-    body.velX += inputDx * moveAcc * dt;
-    body.velZ += inputDz * moveAcc * dt;
+    inputX: number, inputY: number, inputZ: number,
+    gravDown: m.Vec3,
+    gravMag: number
+  ): m.Vec3 {
+    body.velX += inputX * moveAcc * dt;
+    body.velY += inputY * moveAcc * dt;
+    body.velZ += inputZ * moveAcc * dt;
 
     const frictionMult = Math.exp(-friction * dt);
-    body.velX *= frictionMult;
-    body.velZ *= frictionMult;
+    const velDotDown = body.velX * gravDown[0] + body.velY * gravDown[1] + body.velZ * gravDown[2];
 
+    const latX = body.velX - velDotDown * gravDown[0];
+    const latY = body.velY - velDotDown * gravDown[1];
+    const latZ = body.velZ - velDotDown * gravDown[2];
+    body.velX = latX * frictionMult + velDotDown * gravDown[0];
+    body.velY = latY * frictionMult + velDotDown * gravDown[1];
+    body.velZ = latZ * frictionMult + velDotDown * gravDown[2];
 
-    body.velY += gravity * dt;
+    body.velX += gravDown[0] * gravMag * dt;
+    body.velY += gravDown[1] * gravMag * dt;
+    body.velZ += gravDown[2] * gravMag * dt;
 
     px += body.velX * dt;
     py += body.velY * dt;
     pz += body.velZ * dt;
+
+    const upX = -gravDown[0];
+    const upY = -gravDown[1];
+    const upZ = -gravDown[2];
 
     body.isOnGround = false;
     for (let iter = 0; iter < 2; iter++) {
@@ -152,9 +167,15 @@ export function createMovementController(
           body.velZ -= dot * nz;
         }
 
-        if (ny > 0.7) {
+        const normalUpDot = nx * upX + ny * upY + nz * upZ;
+        if (normalUpDot > 0.7){
           body.isOnGround = true;
-          body.velY = Math.max(body.velY, 0);
+          const velDownComp = body.velX * gravDown[0] + body.velY * gravDown[1] + body.velZ * gravDown[2];
+          if (velDownComp > 0) {
+            body.velX -= velDownComp * gravDown[0];
+            body.velY -= velDownComp * gravDown[1];
+            body.velZ -= velDownComp * gravDown[2];
+          }
         }
       }
     }
@@ -166,7 +187,7 @@ export function createMovementController(
       body.velZ = 0;
     }
 
-    return [px, py, pz];
+    return m.vec3.create(px, py, pz);
   }
 
 return {
@@ -178,37 +199,51 @@ return {
       const fwd = camera.getForwardDir();
       const rgt = camera.getRightDir();
 
-      let inputDx = 0, inputDz = 0;
+      let inputX = 0, inputY = 0, inputZ = 0;
       let wantsJump = false;
 
       if (canMove) {
-        if (activeKeys.has("KeyW")) { inputDx += fwd[0]; inputDz += fwd[2]; }
-        if (activeKeys.has("KeyS")) { inputDx -= fwd[0]; inputDz -= fwd[2]; }
-        if (activeKeys.has("KeyA")) { inputDx -= rgt[0]; inputDz -= rgt[2]; }
-        if (activeKeys.has("KeyD")) { inputDx += rgt[0]; inputDz += rgt[2]; }
+        let rawX = 0, rawZ = 0;
+        if (activeKeys.has("KeyW")) { rawX += fwd[0]; rawZ += fwd[2]; }
+        if (activeKeys.has("KeyS")) { rawX -= fwd[0]; rawZ -= fwd[2]; }
+        if (activeKeys.has("KeyA")) { rawX -= rgt[0]; rawZ -= rgt[2]; }
+        if (activeKeys.has("KeyD")) { rawX += rgt[0]; rawZ += rgt[2]; }
 
-        const len = Math.sqrt(inputDx * inputDx + inputDz * inputDz);
-        if (len > 0) { inputDx /= len; inputDz /= len; }
+        const grav = gravityController.getGravity(activePlayerIndex);
+        const gx = grav.down[0], gy = grav.down[1], gz = grav.down[2];
 
+        const dot = rawX * gx + 0 * gy + rawZ * gz;
+        let px3 = rawX - dot * gx;
+        let py3 = 0    - dot * gy;
+        let pz3 = rawZ - dot * gz;
+
+        const len = Math.sqrt(px3 * px3 + py3 * py3 + pz3 * pz3);
+        if (len > 0) { px3 /= len; py3 /= len; pz3 /= len; }
+
+        inputX = px3; inputY = py3; inputZ = pz3;
         wantsJump = activeKeys.has("Space");
       }
 
-      const results: Array<[number, number, number]> = [];
+      const results: Array<m.Vec3> = [];
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i];
         if (!p.alive) {
-          results.push([p.posX, p.posY, p.posZ]);
+          results.push(m.vec3.create(p.posX, p.posY, p.posZ));
           continue;
         }
 
         const isActive = i === activePlayerIndex;
+        const grav = gravityController.getGravity(i);
         results.push(stepBody(
           bodies[i],
           p.posX, p.posY, p.posZ,
           dt,
-          isActive ? inputDx  : 0,
-          isActive ? inputDz  : 0
+          isActive ? inputX : 0,
+          isActive ? inputY : 0,
+          isActive ? inputZ : 0,
+          grav.down,
+          gravityController.magnitude
         ));
       }
 
@@ -285,11 +320,13 @@ return {
           }
         }
       }
+    
 
-      if (canMove && wantsJump && bodies[activePlayerIndex]) {
-          if (bodies[activePlayerIndex].isOnGround) {
-              bodies[activePlayerIndex].velY = jumpVel;
-          }
+      if (canMove && wantsJump && bodies[activePlayerIndex]?.isOnGround) {
+          const grav = gravityController.getGravity(activePlayerIndex);
+          bodies[activePlayerIndex].velX -= grav.down[0] * jumpVel;
+          bodies[activePlayerIndex].velY -= grav.down[1] * jumpVel;
+          bodies[activePlayerIndex].velZ -= grav.down[2] * jumpVel;
       }
 
       return results;
@@ -336,8 +373,8 @@ return {
 
     getVelocity(playerIndex) {
       const b = bodies[playerIndex];
-      if (!b) return [0, 0, 0];
-      return [b.velX, b.velY, b.velZ];
+      if (!b) return m.vec3.create(0, 0, 0);
+      return m.vec3.create(b.velX, b.velY, b.velZ);
     },
   };
 }

@@ -11,6 +11,7 @@ import { GameUI } from "./ui/gameUI";
 import { createMovementController } from "./movement"
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
+import { GravityController, lookDirFromYawPitch } from "./gravity";
 
 interface Player{
   username: string
@@ -30,6 +31,7 @@ export async function startGame(playerData: Player[]) {
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
   const gsm = new GameStateMachine(playerData);
+  const gravity = GravityController(playerData.length);
 
   const gameCam = createGameCamera(
     root,
@@ -114,7 +116,20 @@ export async function startGame(playerData: Player[]) {
     console.log("Player " + (i+1) +  " name: " + player.username)
   ))
 
-  const physics = createMovementController(gameCam, gsm.state.players);
+  const physics = createMovementController(gameCam, gsm.state.players, gravity);
+
+    window.addEventListener("keydown", (e) => {
+    if (e.code === "KeyG") {
+      const activeIdx = gsm.state.currentPlayerIndex;
+      const lookDir = lookDirFromYawPitch(gameCam.getYaw(), gameCam.getPitch());
+      const changed = gravity.trySwap(activeIdx, lookDir);
+      
+      if (changed) {
+        console.log(`Gravity swapped for player ${activeIdx}: ${changed.label}`);
+      }
+    }
+  });
+
   const uiRoot = document.createElement("div");
   uiRoot.id = "gameUIMount";
   uiRoot.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:10";
@@ -178,7 +193,7 @@ export async function startGame(playerData: Player[]) {
 
     const state = gsm.state;
 
-   const canMove = state.phase === "playing" && document.pointerLockElement === canvas;
+    const canMove = state.phase === "playing" && document.pointerLockElement === canvas;
 
     const newPositions = physics.update(
       dt,
