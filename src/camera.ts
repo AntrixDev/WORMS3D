@@ -44,17 +44,79 @@ export function createGameCamera(
   let mode: "intro" | "third-person" = "intro";
   let introPos = new Float32Array([0, arenaFloorY, 0]);
 
+  let baseRight = m.vec3.create(1, 0, 0);
+  let baseUp = m.vec3.create(0, 1, 0);
+  let baseFwd = m.vec3.create(0, 0, 1);
+
+  interface BasisTransition {
+    active: boolean;
+    fromUp: m.Vec3;
+    fromFwd: m.Vec3;
+    fromRight: m.Vec3;
+    axis: m.Vec3;
+    totalAngle: number;
+    elapsed: number;
+    duration: number;
+  }
+
+  let transition: BasisTransition = {
+    active: false,
+    fromUp: m.vec3.create(0, 1, 0),
+    fromFwd: m.vec3.create(0, 0, 1),
+    fromRight: m.vec3.create(1, 0, 0),
+    axis: m.vec3.create(0, 0, 1),
+    totalAngle: 0,
+    elapsed: 0, 
+    duration: 0.5,
+  };
+
+  function rotateVector(v: m.Vec3, u: m.Vec3, cosT: number, sinT: number): m.Vec3 {
+    const cross = m.vec3.cross(u, v);
+    const dot = m.vec3.dot(u, v);
+    return m.vec3.create(
+      v[0] * cosT + cross[0] * sinT + u[0] * dot * (1 - cosT),
+      v[1] * cosT + cross[1] * sinT + u[1] * dot * (1 - cosT),
+      v[2] * cosT + cross[2] * sinT + u[2] * dot * (1 - cosT)
+    );
+  }
+
+  function tickTransition(dt: number) {
+    if (!transition.active) return;
+    
+    transition.elapsed += dt;
+    const raw = transition.elapsed / transition.duration;
+    const t = raw < 1 ? raw * raw * (3 - 2 * raw) : 1;
+    
+    const currentAngle = transition.totalAngle * t;
+    const cosT = Math.cos(currentAngle);
+    const sinT = Math.sin(currentAngle);
+
+    baseUp    = rotateVector(transition.fromUp,    transition.axis, cosT, sinT);
+    baseFwd   = rotateVector(transition.fromFwd,   transition.axis, cosT, sinT);
+    baseRight = rotateVector(transition.fromRight, transition.axis, cosT, sinT);
+
+    if (raw >= 1) {
+      transition.active = false;
+    }
+
+    if (mode === "third-person") updateView();
+  }
+
   function updateView() {
     if (mode === "third-person") {
       const targetLookAt: [number, number, number] = [
-        tpc.targetPos[0], 
-        tpc.targetPos[1] + tpc.height, 
-        tpc.targetPos[2]
+        tpc.targetPos[0] + baseUp[0] * tpc.height, 
+        tpc.targetPos[1] + baseUp[1] * tpc.height, 
+        tpc.targetPos[2] + baseUp[2] * tpc.height
       ];
 
       const dirX = Math.sin(tpc.yaw) * Math.cos(tpc.pitch);
       const dirY = Math.sin(tpc.pitch);
       const dirZ = Math.cos(tpc.yaw) * Math.cos(tpc.pitch);
+
+      const gx = dirX * baseRight[0] + dirY * baseUp[0] + dirZ * baseFwd[0];
+      const gy = dirX * baseRight[1] + dirY * baseUp[1] + dirZ * baseFwd[1];
+      const gz = dirX * baseRight[2] + dirY * baseUp[2] + dirZ * baseFwd[2];
 
       let actualDistance = tpc.distance;
       const cameraRadius = 0.4;
@@ -62,9 +124,9 @@ export function createGameCamera(
       const steps = 8; 
       for (let i = 1; i <= steps; i++) {
         const checkDist = (i / steps) * tpc.distance;
-        const px = targetLookAt[0] + dirX * checkDist;
-        const py = targetLookAt[1] + dirY * checkDist;
-        const pz = targetLookAt[2] + dirZ * checkDist;
+        const px = targetLookAt[0] + gx * checkDist;
+        const py = targetLookAt[1] + gy * checkDist;
+        const pz = targetLookAt[2] + gz * checkDist;
 
         const distToWall = getSceneSDF(px, py, pz);
         
@@ -74,11 +136,11 @@ export function createGameCamera(
         }
       }
 
-      const camX = targetLookAt[0] + dirX * actualDistance;
-      const camY = targetLookAt[1] + dirY * actualDistance;
-      const camZ = targetLookAt[2] + dirZ * actualDistance;
+      const camX = targetLookAt[0] + gx * actualDistance;
+      const camY = targetLookAt[1] + gy * actualDistance;
+      const camZ = targetLookAt[2] + gz * actualDistance;
 
-      m.mat4.lookAt([camX, camY, camZ], targetLookAt, [0, 1, 0], viewMat);
+      m.mat4.lookAt([camX, camY, camZ], targetLookAt, baseUp, viewMat);
       cameraBuffer.patch({ view: viewMat });
       
     } else if (mode === "intro") {
@@ -104,7 +166,7 @@ export function createGameCamera(
   }, { passive: true });
 
   window.addEventListener("resize", () => {
-    m.mat4.perspective(Math.PI / 3, canvas.clientWidth / canvas.clientHeight, 0.1, 500, projMat);
+    m.mat4.perspective(Math.PI / 3, canvas.clientWidth/canvas.clientHeight, 0.1, 500, projMat);
     cameraBuffer.patch({ projection: projMat });
   });
 
@@ -120,6 +182,67 @@ export function createGameCamera(
   return {
     cameraBuffer,
     updateView,
+
+    setGravityDown(down: m.Vec3 | number[], immediate = false) {
+        const newUp = m.vec3.create(-down[0], -down[1], -down[2]);
+
+        if (immediate) {
+          const oldUp = m.vec3.create(baseUp[0], baseUp[1], baseUp[2]);
+          const axis = m.vec3.cross(oldUp, newUp);
+          const sine = m.vec3.length(axis);
+          const cosine = m.vec3.dot(oldUp, newUp);
+
+          let u = m.vec3.create(0, 0, 0);
+          let cosT = cosine;
+          let sinT = sine;
+
+          if (sine < 0.001) {
+            if (cosine > 0) {
+              baseUp = newUp;
+              transition.active = false;
+              if (mode === "third-person") updateView();
+              return;
+            } else {
+              u = m.vec3.create(baseRight[0], baseRight[1], baseRight[2]);
+              cosT = -1; sinT = 0;
+            }
+          } else {
+            u = m.vec3.create(axis[0] / sine, axis[1] / sine, axis[2] / sine);
+          }
+
+          baseUp    = newUp;
+          baseFwd   = rotateVector(baseFwd, u, cosT, sinT);
+          baseRight = rotateVector(baseRight, u, cosT, sinT);
+          transition.active = false;
+          if (mode === "third-person") updateView();
+          return;
+        }
+
+        transition.fromUp = m.vec3.create(baseUp[0], baseUp[1], baseUp[2]);
+        transition.fromFwd = m.vec3.create(baseFwd[0], baseFwd[1], baseFwd[2]);
+        transition.fromRight = m.vec3.create(baseRight[0], baseRight[1], baseRight[2]);
+
+        const axis = m.vec3.cross(transition.fromUp, newUp);
+        const sine = m.vec3.length(axis);
+        const cosine = m.vec3.dot(transition.fromUp, newUp);
+
+        if (sine < 0.001) {
+          if (cosine > 0) {
+            transition.totalAngle = 0;
+            transition.axis = m.vec3.create(0, 1, 0);
+          } else {
+            transition.axis = m.vec3.create(baseRight[0], baseRight[1], baseRight[2]);
+            transition.totalAngle = Math.PI;
+          }
+        } else {
+          transition.axis = m.vec3.create(axis[0] / sine, axis[1] / sine, axis[2] / sine);
+          transition.totalAngle = Math.acos(Math.max(-1, Math.min(1, cosine)));
+        }
+
+        transition.elapsed  = 0;
+        transition.active   = true;
+    },
+
     setIntroTarget(player: PlayerState) {
       introPos[0] = player.posX;
       introPos[1] = player.posY;
@@ -146,11 +269,26 @@ export function createGameCamera(
     getPitch(): number {
       return tpc.pitch;
     },
-    getForwardDir(): [number, number, number] {
-      return [-Math.sin(tpc.yaw), 0, -Math.cos(tpc.yaw)];
+    tick(dt: number) {
+      tickTransition(dt);
     },
-    getRightDir(): [number, number, number] {
-      return [Math.cos(tpc.yaw), 0, -Math.sin(tpc.yaw)];
+
+
+    getForwardDir(): m.Vec3 {
+      const dirX = Math.sin(tpc.yaw);
+      const dirZ = Math.cos(tpc.yaw);
+      const gx = dirX * baseRight[0] + dirZ * baseFwd[0];
+      const gy = dirX * baseRight[1] + dirZ * baseFwd[1];
+      const gz = dirX * baseRight[2] + dirZ * baseFwd[2];
+      
+      return m.vec3.create(-gx, -gy, -gz);
+    },
+    getRightDir(): m.Vec3 {
+      const f = this.getForwardDir();
+      const r = m.vec3.cross(f, baseUp);
+      m.vec3.normalize(r, r);
+
+      return m.vec3.create(r[0], r[1], r[2]);
     },
   };
 }
