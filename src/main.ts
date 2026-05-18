@@ -121,11 +121,12 @@ export async function startGame(playerData: Player[]) {
     window.addEventListener("keydown", (e) => {
     if (e.code === "KeyG") {
       const activeIdx = gsm.state.currentPlayerIndex;
-      const lookDir = lookDirFromYawPitch(gameCam.getYaw(), gameCam.getPitch());
+      const lookDir = gameCam.getForwardDir();
       const changed = gravity.trySwap(activeIdx, lookDir);
       
       if (changed) {
         console.log(`Gravity swapped for player ${activeIdx}: ${changed.label}`);
+        gameCam.setGravityDown(changed.down); 
       }
     }
   });
@@ -158,6 +159,7 @@ export async function startGame(playerData: Player[]) {
   gsm.onCameraIntro = (player) => gameCam.setIntroTarget(player);
   gsm.onCameraThirdPerson = (player) => {
     gameCam.setThirdPersonTarget(player);
+    gameCam.setGravityDown(gravity.getGravity(player.index).down, true);
     canvas.requestPointerLock();
   };
 
@@ -194,6 +196,8 @@ export async function startGame(playerData: Player[]) {
     const state = gsm.state;
 
     const canMove = state.phase === "playing" && document.pointerLockElement === canvas;
+    
+    gameCam.tick(dt);
 
     const newPositions = physics.update(
       dt,
