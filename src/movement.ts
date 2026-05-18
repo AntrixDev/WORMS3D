@@ -206,24 +206,19 @@ return {
       let wantsJump = false;
 
       if (canMove) {
-        let rawX = 0, rawZ = 0;
-        if (activeKeys.has("KeyW")) { rawX += fwd[0]; rawZ += fwd[2]; }
-        if (activeKeys.has("KeyS")) { rawX -= fwd[0]; rawZ -= fwd[2]; }
-        if (activeKeys.has("KeyA")) { rawX -= rgt[0]; rawZ -= rgt[2]; }
-        if (activeKeys.has("KeyD")) { rawX += rgt[0]; rawZ += rgt[2]; }
+        let rawX = 0, rawY = 0, rawZ = 0;
+        
+        if (activeKeys.has("KeyW")) { rawX += fwd[0]; rawY += fwd[1]; rawZ += fwd[2]; }
+        if (activeKeys.has("KeyS")) { rawX -= fwd[0]; rawY -= fwd[1]; rawZ -= fwd[2]; }
+        if (activeKeys.has("KeyA")) { rawX -= rgt[0]; rawY -= rgt[1]; rawZ -= rgt[2]; }
+        if (activeKeys.has("KeyD")) { rawX += rgt[0]; rawY += rgt[1]; rawZ += rgt[2]; }
 
-        const grav = gravityController.getGravity(activePlayerIndex);
-        const gx = grav.down[0], gy = grav.down[1], gz = grav.down[2];
+        const len = Math.sqrt(rawX*rawX + rawY*rawY + rawZ*rawZ);
+        if (len > 0) { rawX /= len; rawY /= len; rawZ /= len; }
 
-        const dot = rawX * gx + 0 * gy + rawZ * gz;
-        let px3 = rawX - dot * gx;
-        let py3 = 0    - dot * gy;
-        let pz3 = rawZ - dot * gz;
-
-        const len = Math.sqrt(px3 * px3 + py3 * py3 + pz3 * pz3);
-        if (len > 0) { px3 /= len; py3 /= len; pz3 /= len; }
-
-        inputX = px3; inputY = py3; inputZ = pz3;
+        inputX = rawX;
+        inputY = rawY;
+        inputZ = rawZ;
         wantsJump = activeKeys.has("Space");
       }
 
@@ -281,9 +276,12 @@ return {
               const b1 = bodies[i];
               const b2 = bodies[j];
               
-              if (ny > 0.5) {
+              const grav1 = gravityController.getGravity(i);
+              const grav2 = gravityController.getGravity(j);
+              
+              if(nx * -grav2.down[0] + ny * -grav2.down[1] + nz * -grav2.down[2] > 0.5){
                   b2.isOnGround = true;
-              } else if (ny < -0.5) {
+              }else if(nx * grav1.down[0] + ny * grav1.down[1] + nz * grav1.down[2] > 0.5){
                   b1.isOnGround = true;
               }
 
@@ -318,7 +316,10 @@ return {
           p[1] += ny * penetration;
           p[2] += nz * penetration;
           
-          if (ny > 0.7) {
+          const grav = gravityController.getGravity(i);
+          const dot = nx * -grav.down[0] + ny * -grav.down[1] + nz * -grav.down[2];
+          
+          if (dot > 0.7) {
               bodies[i].isOnGround = true;
           }
         }
@@ -327,9 +328,19 @@ return {
 
       if (canMove && wantsJump && bodies[activePlayerIndex]?.isOnGround) {
           const grav = gravityController.getGravity(activePlayerIndex);
-          bodies[activePlayerIndex].velX -= grav.down[0] * jumpVel;
-          bodies[activePlayerIndex].velY -= grav.down[1] * jumpVel;
-          bodies[activePlayerIndex].velZ -= grav.down[2] * jumpVel;
+          const b = bodies[activePlayerIndex];
+          const velAlongUp = -(b.velX * grav.down[0] + b.velY * grav.down[1] + b.velZ * grav.down[2]);
+          
+          if (velAlongUp < jumpVel * 0.5) {
+            const velDotDown = b.velX * grav.down[0] + b.velY * grav.down[1] + b.velZ * grav.down[2];
+            b.velX -= velDotDown * grav.down[0];
+            b.velY -= velDotDown * grav.down[1];
+            b.velZ -= velDotDown * grav.down[2];
+            b.velX -= grav.down[0] * jumpVel;
+            b.velY -= grav.down[1] * jumpVel;
+            b.velZ -= grav.down[2] * jumpVel;
+            b.isOnGround = false;
+          }
       }
 
       return results;
