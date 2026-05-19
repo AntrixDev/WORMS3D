@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
-import type { GameState, PlayerState, Weapon } from "../gameState";
+import type { GameState, PlayerState, Weapon, KillLogEntry } from "../gameState";
 import "./gameUI.css"
 import { turnDuration } from "../gameState"
 
 const primaryColor= "#f77298";
+
+const causeLabel: Record<string, string> = {
+  void: "fell into the void",
+  weapon: "was eliminated",
+  unknown: "died",
+};
+
+const causeIcon: Record<string, string> = {
+  void: ".𖥔 ݁ ˖🕳️ִ༄˖°",
+  weapon: "ᡕᠵデᡁ᠊╾━",
+  unknown: "¯\_(ツ)_/¯",
+};
 
 function IntroOverlay({ player, timeLeft, onSkip }: { player: PlayerState; timeLeft: number; onSkip: () => void }) {
   useEffect(() => {
@@ -133,19 +145,93 @@ function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOp
   );
 }
 
-export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void }) {
-  const { phase, players, currentPlayerIndex, turnTimeLeft, introTimeLeft, selectedWeapon, inventory, inventoryOpen } = gameState;
+function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLogEntry; timeLeft: number; totalTime: number; onDismiss: () => void; }) {
+  useEffect(() => {
+    const handler = () => onDismiss();
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, [onDismiss]);
+
+  const barPct = (timeLeft/totalTime) * 100;
+
+  return (
+    <div className="death-overlay">
+      <div className="death-card">
+        <div className="death-title">eliminated</div>
+        <div className="death-username">{entry.victimName}</div>
+
+        <div className="death-stats">
+          <div className="death-stat-row">
+            <span className="death-stat-label">Cause</span>
+            <span className="death-stat-value">
+              {causeIcon[entry.cause] ?? "☠️"}&nbsp;
+              {causeLabel[entry.cause] ?? "died"}
+            </span>
+          </div>
+
+          {entry.killerName && (
+            <div className="death-stat-row">
+              <span className="death-stat-label">Killed by</span>
+              <span className="death-stat-value" style={{ color: primaryColor }}>
+                {entry.killerName}
+              </span>
+            </div>
+          )}
+
+          <div className="death-stat-row">
+            <span className="death-stat-label">Round</span>
+            <span className="death-stat-value">#{entry.round}</span>
+          </div>
+        </div>
+
+        <div className="death-timer-row">
+          <div className="death-timer-bar-track">
+            <div
+              className="death-timer-bar-fill"
+              style={{ width: `${barPct}%` }}
+            />
+          </div>
+          <div className="death-timer-hint">click to continue · {timeLeft}s</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const deathScreenTotal = 10;
+
+export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory, onDismissDeathScreen }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; }) {
+  const {
+    phase,
+    players,
+    currentPlayerIndex,
+    turnTimeLeft,
+    introTimeLeft,
+    selectedWeapon,
+    inventory,
+    inventoryOpen,
+    deathScreenEntry,
+    deathScreenTimeLeft,
+  } = gameState;
+
   const currentPlayer = players[currentPlayerIndex];
   const [showPlayerList, setShowPlayerList] = useState(false);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.code === "KeyQ" && phase === "playing") onToggleInventory(); };
+    const handler = (e: KeyboardEvent) => {
+      if(e.code === "KeyQ" && phase === "playing") onToggleInventory();
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [phase, onToggleInventory]);
 
   useEffect(() => {
-    const onDown = (e: KeyboardEvent) => { if (e.code === "Tab" || e.code === "KeyT") { e.preventDefault(); setShowPlayerList(true); } };
+    const onDown = (e: KeyboardEvent) => {
+      if(e.code === "Tab" || e.code === "KeyT") {
+        e.preventDefault();
+        setShowPlayerList(true);
+      }
+    };
     const onUp = (e: KeyboardEvent) => { if (e.code === "Tab" || e.code === "KeyT") setShowPlayerList(false); };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
@@ -154,7 +240,19 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
 
   return (
     <div className="hud-container">
-      {phase === "intro" && <IntroOverlay player={currentPlayer} timeLeft={introTimeLeft} onSkip={onSkipIntro} />}
+      {phase === "deathScreen" && deathScreenEntry && (
+        <DeathScreen
+          entry={deathScreenEntry}
+          timeLeft={deathScreenTimeLeft}
+          totalTime={deathScreenTotal}
+          onDismiss={onDismissDeathScreen}
+        />
+      )}
+
+      {phase === "intro" && (
+        <IntroOverlay player={currentPlayer} timeLeft={introTimeLeft} onSkip={onSkipIntro} />
+      )}
+
       {phase === "playing" && (
         <>
           <TurnUI player={currentPlayer} turnTimeLeft={turnTimeLeft} />

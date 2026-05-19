@@ -1,5 +1,5 @@
 :root {
-  --glass-bg: rgba(255, 255, 255, 0.675);
+  --glass-bg: rgba(255, 255, 255, 0.752);
   --glass-border: rgba(255, 255, 255, 0.15);
   --blur: blur(20px);
   --radius: 24px;
@@ -307,4 +307,118 @@
   min-width: 64px;
   text-align: right;
   letter-spacing: 0.04em;
+}
+
+.death-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(117, 29, 29, 0.72);
+  backdrop-filter: blur(10px);
+  pointer-events: all;
+  z-index: 30;
+  animation: death-fade-in 0.4s ease;
+}
+
+@keyframes death-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.death-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2em;
+  background: var(--glass-bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 36px;
+  padding: 3.5em 5em;
+  min-width: 380px;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 12px 48px rgba(255, 255, 255, 0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  animation: death-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes death-card-in {
+  from { opacity: 0; transform: scale(0.85) translateY(20px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+.death-title {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  color: rgba(0, 0, 0, 0.775);
+  text-transform: uppercase;
+}
+
+.death-username {
+  font-size: 56px;
+  font-weight: 900;
+  color: #ff4466;
+  line-height: 1;
+  text-shadow: 0 0 40px rgba(255, 68, 102, 0.5);
+}
+
+.death-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  width: 100%;
+}
+
+.death-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6em 1.2em;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+}
+
+.death-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+}
+
+.death-stat-value {
+  font-size: 15px;
+  font-weight: 900;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.death-timer-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.death-timer-bar-track {
+  width: 260px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.death-timer-bar-fill {
+  height: 100%;
+  background: #ff4466;
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+.death-timer-hint {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(0, 0, 0, 0.3);
+  text-transform: uppercase;
 }
