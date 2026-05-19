@@ -137,7 +137,13 @@ export async function startGame(playerData: Player[]) {
   document.body.appendChild(uiRoot);
 
   const reactRoot = createRoot(uiRoot);
-  const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players);
+  const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players, gravity);
+
+  const slimeVisuals = playerData.map(() => ({
+    currentGd: m.vec3.create(0, -1, 0),
+    currentFwd: m.vec3.create(0, 0, -1),
+    initialized: false,
+  }));
 
   function renderUI() {
     reactRoot.render(
@@ -159,7 +165,7 @@ export async function startGame(playerData: Player[]) {
   gsm.onCameraIntro = (player) => gameCam.setIntroTarget(player);
   gsm.onCameraThirdPerson = (player) => {
     gameCam.setThirdPersonTarget(player);
-    gameCam.setGravityDown(gravity.getGravity(player.index).down, true);
+    gameCam.setGravityDown(gravity.getGravity(player.index).down, true); 
     canvas.requestPointerLock();
   };
 
@@ -167,6 +173,7 @@ export async function startGame(playerData: Player[]) {
   gsm.start();
 
   let lastTime = performance.now();
+  const tempProjectionVec = m.vec3.create();
 
   function drawCubes() {
     cubePipeline
@@ -211,25 +218,49 @@ export async function startGame(playerData: Player[]) {
       const p = state.players[i];
 
       const isActive = p.index === state.currentPlayerIndex;
-      const currentYaw = isActive ? gameCam.getYaw() : p.yaw;
 
-      const positionChanged = nx !== p.posX || ny !== p.posY || nz !== p.posZ;
-      const yawChanged = currentYaw !== p.yaw;
+      if(isActive){
+        p.yaw = gameCam.getYaw();
+        gameCam.updatePlayerPos(nx, ny, nz);
+      }
 
-      if (positionChanged || yawChanged) {
-        if (positionChanged) {
-          gsm.updatePlayerPosition(p.index, nx, ny, nz);
-        }
+      if(nx !== p.posX || ny !== p.posY || nz !== p.posZ){
+        gsm.updatePlayerPosition(p.index, nx, ny, nz);
+      }
 
-        p.yaw = currentYaw;
+      const targetGd = gravity.getGravity(p.index).down;
+      
+      const targetFwd = isActive ? gameCam.getForwardDir() : (() => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw); return m.vec3.create(-s, 0, -c); })();
 
-        slime.updatePlayerPos(p.index, nx, ny - 0.1, nz, p.yaw);
+      const visual = slimeVisuals[i];
+      if(!visual.initialized){
+        m.vec3.copy(targetGd, visual.currentGd);
+        m.vec3.copy(targetFwd, visual.currentFwd);
+        visual.initialized = true;
+      }else{
+        const gdBlendFactor = 1 - Math.exp(-6.0 * dt); 
+        m.vec3.lerp(visual.currentGd, targetGd, gdBlendFactor, visual.currentGd);
+        m.vec3.normalize(visual.currentGd, visual.currentGd);
 
-        if (isActive) {
-          gameCam.updatePlayerPos(nx, ny, nz);
+        const dot = m.vec3.dot(targetFwd, visual.currentGd);
+        m.vec3.scale(visual.currentGd, dot, tempProjectionVec);
+        m.vec3.subtract(targetFwd, tempProjectionVec, visual.currentFwd);
+        
+        if(m.vec3.lengthSq(visual.currentFwd) < 0.001){
+          if(Math.abs(visual.currentGd[1]) > 0.9){
+            visual.currentFwd = m.vec3.create(0, 0, -1);
+          }else{
+            visual.currentFwd = m.vec3.create(0, 1, 0);
+          }
+        }else{
+          m.vec3.normalize(visual.currentFwd, visual.currentFwd);
         }
       }
-      
+
+      const gd = visual.currentGd;
+      const fwd = visual.currentFwd;
+
+      slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number]);
     }
 
     drawCubes();
