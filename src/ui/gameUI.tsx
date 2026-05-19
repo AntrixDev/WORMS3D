@@ -224,10 +224,10 @@ function KillFeedEntry({ item }: { item: FeedItem }) {
   }, [item.expiresAt]);
 
   return (
-    <div className={`killfeed-entry ${isExiting ? "killfeed-animate-out" : "killfeed-animate-in"}`}>
+    <div className={`killfeed-entry ${isExiting ? "killfeed-animate-out" : "killfeed-animate-in"}`} style={{borderLeft: `3px solid ${primaryColor}`}}>
       <span className="killfeed-cause-icon">{causeIcon[item.cause] ?? "☠️"}</span>
       <span>
-        <span className="killfeed-victim">{item.victimName}</span>
+        <span style={{color: primaryColor}}>{item.victimName}</span>
         {" "}
         {causeLabel[item.cause] ?? "died"}
         {item.killerName && (

@@ -438,7 +438,6 @@
   align-items: center;
   gap: 8px;
   background: rgba(0, 0, 0, 0.55);
-  border-left: 3px solid #ff4466;
   border-radius: 0 10px 10px 0;
   padding: 7px 14px 7px 10px;
   backdrop-filter: blur(8px);
@@ -449,7 +448,7 @@
 }
 
 .killfeed-animate-in {
-  animation: killfeed-slide-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: killfeed-slide-in 0.3s forwards;
 }
 
 .killfeed-animate-out {
@@ -483,10 +482,6 @@
   flex-shrink: 0;
 }
 
-.killfeed-victim {
-  color: #ff4466;
-}
-
 .killfeed-killer {
-  color: #f77298;
+  color: rgba(117, 29, 29, 0.72);
 }
