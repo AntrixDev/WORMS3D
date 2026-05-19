@@ -1,6 +1,6 @@
 import { arenaFloorY, arenaWallMax, arenaWallMin } from "./map";
 
-export type GamePhase = "intro" | "playing";
+export type GamePhase = "intro" | "playing" | "deathScreen";
 
 export interface PlayerState {
     index: number;
@@ -23,6 +23,17 @@ export interface Weapon {
     ammo: number;
     icon: string;
 }
+export type DeathCause = "void" | "weapon" | "unknown";
+
+export interface KillLogEntry {
+    victimIndex: number;
+    victimName: string;
+    killerIndex: number | null;
+    killerName: string | null;
+    cause: DeathCause;
+    round: number;
+    duringOwnTurn: boolean;
+}
 
 export interface GameState {
     phase: GamePhase;
@@ -35,10 +46,13 @@ export interface GameState {
     inventory: Weapon[];
     inventoryOpen: boolean;
     cameraMode: "intro" | "thirdPer";
+    deathScreenEntry: KillLogEntry | null;
+    deathScreenTimeLeft: number;
 }
 
 export const turnDuration = 50;
 const introDuration = 5;
+const deathScreenDuration = 10;
 
 const spawnMin = Math.ceil(arenaWallMin);
 const spawnMax = Math.ceil(arenaWallMax);
@@ -101,6 +115,8 @@ export function createInitGameState (
         inventory: [...defWeapons.map(w => ({ ...w }))],
         inventoryOpen: false,
         cameraMode: "intro",
+        deathScreenEntry: null,
+        deathScreenTimeLeft: 0,
     }
 }
 
@@ -115,6 +131,7 @@ export class GameStateMachine {
     private introTimer: ReturnType<typeof setInterval> | null=null;
     private turnTimer: ReturnType<typeof setInterval> | null=null;
     private fireTimer: ReturnType<typeof setTimeout> | null=null;
+    private deathTimer: ReturnType<typeof setInterval> | null=null;
 
     constructor(players: { username: string; characterIndex?: number }[]) {
         this.state = createInitGameState(players);
@@ -136,6 +153,7 @@ export class GameStateMachine {
         this.state.cameraMode = "intro";
         this.state.inventoryOpen = false;
         this.state.selectedWeapon = null;
+        this.state.deathScreenEntry = null;
         this.emit();
 
         this.onCameraIntro?.(cur);
@@ -175,6 +193,56 @@ export class GameStateMachine {
                 this.advanceTurn();
             }
         }, 1000);
+    }
+
+    killPlayer( victimIndex: number, cause: DeathCause = "void", killerIndex: number | null = null, ) {
+        const victim = this.state.players[victimIndex];
+        if (!victim || !victim.alive) return;
+
+        victim.hp = 0;
+        victim.alive = false;
+
+        const killer = killerIndex !== null ? this.state.players[killerIndex] : null;
+        const duringOwnTurn = victimIndex === this.state.currentPlayerIndex;
+
+        const entry: KillLogEntry = {
+            victimIndex,
+            victimName: victim.username,
+            killerIndex,
+            killerName: killer?.username ?? null,
+            cause,
+            round: this.state.roundNumber,
+            duringOwnTurn,
+        };
+
+        if (duringOwnTurn) {
+            this.clearTimers();
+            this.state.phase = "deathScreen";
+            this.state.deathScreenEntry = entry;
+            this.state.deathScreenTimeLeft = deathScreenDuration;
+            this.state.inventoryOpen = false;
+            this.emit();
+
+            this.deathTimer = setInterval(() => {
+                this.state.deathScreenTimeLeft -= 1;
+                this.emit();
+                if (this.state.deathScreenTimeLeft <= 0) {
+                    this.dismissDeathScreen();
+                }
+            }, 1000);
+        } else {
+            console.log(
+                `[Kill log] ${victim.username} died (${cause}) during round ${this.state.roundNumber} — not their turn.`
+            );
+            this.emit();
+        }
+    }
+
+    dismissDeathScreen() {
+        if (this.state.phase !== "deathScreen") return;
+        this.clearTimers();
+        this.state.deathScreenEntry = null;
+        this.advanceTurn();
     }
 
     toggleInventory() {
@@ -234,6 +302,7 @@ export class GameStateMachine {
         if (this.introTimer) { clearInterval(this.introTimer); this.introTimer = null; }
         if (this.turnTimer) { clearInterval(this.turnTimer); this.turnTimer = null; }
         if (this.fireTimer) { clearTimeout(this.fireTimer); this.fireTimer = null; }
+        if(this.deathTimer) { clearInterval(this.deathTimer); this.deathTimer = null; }
     }
 
     get currentPlayer(): PlayerState {
