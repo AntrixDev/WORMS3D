@@ -61,8 +61,8 @@ const spawnMax = Math.ceil(arenaWallMax);
 const spawnY = arenaFloorY + 0.2;
 
 export const defWeapons: Weapon[] = [
-    {id: 1, name: "weap1", ammo: 1, icon: "🚀"},
-    {id: 2, name: "weap2", ammo: 4, icon: "🧨"},
+    {id: 1, name: "Rocket Launcher", ammo: 2, icon: "🚀"},
+    {id: 2, name: "Grenade", ammo: 1, icon: "💣"},
 ];
 
 function randomSpawnCord(): number {
@@ -236,9 +236,6 @@ export class GameStateMachine {
                 }
             }, 1000);
         } else {
-            console.log(
-                `[Kill log] ${victim.username} died (${cause}) during round ${this.state.roundNumber} — not their turn.`
-            );
             this.emit();
         }
     }
