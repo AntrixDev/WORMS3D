@@ -221,9 +221,15 @@ export async function startGame(playerData: Player[]) {
      for (let i = 0; i < state.players.length; i++) {
       const [nx, ny, nz] = newPositions[i];
       const p = state.players[i];
+      
+      if (!p.alive) {
+        slime.updatePlayerPos(p.index, 0, -9999, 0, [0, 0, -1], [0, -1, 0]);
+        continue;
+      }
 
       if ((ny < -fallReset || ny > fallReset) || (nx < -fallReset || nx > fallReset) || (nz < -fallReset || nz > fallReset)) {
         gsm.killPlayer(p.index, "void");
+        slime.updatePlayerPos(p.index, 0, -9999, 0, [0, 0, -1], [0, -1, 0]);
         continue;
       }
 
