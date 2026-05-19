@@ -1,7 +1,7 @@
 import { d } from "typegpu";
 import * as m from "wgpu-matrix";
-import { arenaFloorY, arenaWallMax, arenaWallMin } from "./map";
-import type { PlayerState} from "./gameState";
+import { arenaFloorY } from "./map";
+import type { PlayerState } from "./gameState";
 import { getSceneSDF } from "./movement"; 
 
 export const Camera = d.struct({
@@ -53,6 +53,8 @@ export function createGameCamera(
     fromUp: m.Vec3;
     fromFwd: m.Vec3;
     fromRight: m.Vec3;
+    toFwd: m.Vec3;
+    toRight: m.Vec3;
     axis: m.Vec3;
     totalAngle: number;
     elapsed: number;
@@ -64,6 +66,8 @@ export function createGameCamera(
     fromUp: m.vec3.create(0, 1, 0),
     fromFwd: m.vec3.create(0, 0, 1),
     fromRight: m.vec3.create(1, 0, 0),
+    toFwd: m.vec3.create(0, 0, 1),
+    toRight: m.vec3.create(1, 0, 0),
     axis: m.vec3.create(0, 0, 1),
     totalAngle: 0,
     elapsed: 0, 
@@ -241,6 +245,11 @@ export function createGameCamera(
 
         transition.elapsed  = 0;
         transition.active   = true;
+
+        const cosEnd = Math.cos(transition.totalAngle);
+        const sinEnd= Math.sin(transition.totalAngle);
+        transition.toFwd = rotateVector(transition.fromFwd, transition.axis, cosEnd, sinEnd);
+        transition.toRight =rotateVector(transition.fromRight, transition.axis, cosEnd, sinEnd);
     },
 
     setIntroTarget(player: PlayerState) {
@@ -272,14 +281,26 @@ export function createGameCamera(
     tick(dt: number) {
       tickTransition(dt);
     },
-
-
+    isTransitioning(): boolean {
+      return transition.active;
+    },
     getForwardDir(): m.Vec3 {
       const dirX = Math.sin(tpc.yaw);
       const dirZ = Math.cos(tpc.yaw);
       const gx = dirX * baseRight[0] + dirZ * baseFwd[0];
       const gy = dirX * baseRight[1] + dirZ * baseFwd[1];
       const gz = dirX * baseRight[2] + dirZ * baseFwd[2];
+      return m.vec3.create(-gx, -gy, -gz);
+    },
+
+    getSettledForwardDir(): m.Vec3 {
+      const fwd = transition.active ? transition.toFwd : baseFwd;
+      const rgt = transition.active ? transition.toRight : baseRight;
+      const dirX = Math.sin(tpc.yaw);
+      const dirZ = Math.cos(tpc.yaw);
+      const gx = dirX * rgt[0] + dirZ * fwd[0];
+      const gy = dirX * rgt[1] + dirZ * fwd[1];
+      const gz = dirX * rgt[2] + dirZ * fwd[2];
       
       return m.vec3.create(-gx, -gy, -gz);
     },
