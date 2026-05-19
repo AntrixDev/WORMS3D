@@ -86,10 +86,10 @@ function PlayerList({ players, currentPlayerIndex }: { players: PlayerState[]; c
             <div
               key={p.index}
               className={`playerlist-row ${!p.alive ? "playerlist-row--dead" : ""} ${isActive ? "playerlist-row--active" : ""}`}
-              style={isActive ? { borderLeft: `3px solid ${primaryColor}` } : {}}
+              style={isActive ? { borderLeft: `3px solid ${primaryColor}`} : {}}
             >
               <span className="playerlist-status">{p.alive ? "●" : "✕"}</span>
-              <span className="playerlist-name">{p.username}</span>
+              <span className="playerlist-name" style={isActive ? { color: primaryColor} : {}}>{p.username}</span>
               <span className="playerlist-hp" style={{ color: hpColor }}>
                 {p.alive ? `${p.hp} HP` : "DEAD"}
               </span>
@@ -158,7 +158,7 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
     <div className="death-overlay">
       <div className="death-card">
         <div className="death-title">eliminated</div>
-        <div className="death-username">{entry.victimName}</div>
+        <div className="death-username" style={{color: primaryColor, textShadow: `0 0 40px ${primaryColor}`}}>{entry.victimName}</div>
 
         <div className="death-stats">
           <div className="death-stat-row">
@@ -182,13 +182,17 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
             <span className="death-stat-label">Round</span>
             <span className="death-stat-value">#{entry.round}</span>
           </div>
+          <div className="death-stat-row">
+            <span className="death-stat-label">Status</span>
+            <span className="death-stat-value"> none4now</span>
+          </div>
         </div>
 
         <div className="death-timer-row">
           <div className="death-timer-bar-track">
             <div
               className="death-timer-bar-fill"
-              style={{ width: `${barPct}%` }}
+              style={{ width: `${barPct}%`, backgroundColor: primaryColor }}
             />
           </div>
           <div className="death-timer-hint">click to continue · {timeLeft}s</div>
