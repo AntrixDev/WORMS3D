@@ -8,7 +8,7 @@ import { forEach } from "@loaders.gl/core";
 import { GameStateMachine } from "./gameState";
 import type { Weapon } from "./gameState";
 import { GameUI } from "./ui/gameUI";
-import { createMovementController } from "./movement"
+import { createMovementController, fallReset } from "./movement"
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GravityController, lookDirFromYawPitch } from "./gravity";
@@ -146,6 +146,10 @@ export async function startGame(playerData: Player[]) {
   }));
 
   function renderUI() {
+    if (gsm.state.phase === "deathScreen" && document.pointerLockElement === canvas) {
+      document.exitPointerLock();
+    }
+
     reactRoot.render(
       createElement(GameUI, {
         gameState: gsm.state,
@@ -157,6 +161,7 @@ export async function startGame(playerData: Player[]) {
           if (willOpen) document.exitPointerLock();
           else canvas.requestPointerLock();
         },
+        onDismissDeathScreen: () => gsm.dismissDeathScreen(), 
       })
     );
   }
@@ -216,6 +221,11 @@ export async function startGame(playerData: Player[]) {
      for (let i = 0; i < state.players.length; i++) {
       const [nx, ny, nz] = newPositions[i];
       const p = state.players[i];
+
+      if ((ny < -fallReset || ny > fallReset) || (nx < -fallReset || nx > fallReset) || (nz < -fallReset || nz > fallReset)) {
+        gsm.killPlayer(p.index, "void");
+        continue;
+      }
 
       const isActive = p.index === state.currentPlayerIndex;
 
