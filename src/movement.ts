@@ -70,14 +70,14 @@ interface PhysicsBody {
   velY: number;
   velZ: number;
   isOnGround: boolean;
+  fell: boolean;
 }
 
 const jumpVel = 10;
 const moveAcc = 60;
 const friction = 10;
 const playerRadius = 0.4;
-const fallReset = (arenaInnerSize + arenaLayers-1 * 2)*4;
-const fallResetSpawn = 0;
+export const fallReset = (arenaInnerSize + arenaLayers-1 * 2)*4;
 
 
 export interface PhysicsController {
@@ -102,18 +102,22 @@ export interface PhysicsController {
 }
 
 
+export interface MovementControllerOptions {
+  onPlayerFell?: (playerIndex: number) => void;
+}
 
 export function createMovementController(
     camera: ReturnType<typeof createGameCamera>,
     initialPlayers: PlayerState[],
-    gravityController: GravityController
+    gravityController: GravityController,
+    options: MovementControllerOptions = {}
 ): PhysicsController {
   const activeKeys = new Set<string>();
   window.addEventListener("keydown", (e) => activeKeys.add(e.code));
   window.addEventListener("keyup", (e) => activeKeys.delete(e.code));
 
   const bodies: PhysicsBody[] = initialPlayers.map(() => ({
-    velX: 0, velY: 0, velZ: 0, isOnGround: false,
+    velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false,
   }));
 
   function stepBody(
@@ -182,12 +186,7 @@ export function createMovementController(
     }
 
     if ((py < -fallReset || py > fallReset) || (px < -fallReset || px > fallReset) || (pz < -fallReset || pz > fallReset)) {
-      py = fallResetSpawn;
-      px = fallResetSpawn;
-      pz = fallResetSpawn;
-      body.velY = 0;
-      body.velX = 0;
-      body.velZ = 0;
+      body.fell=true;
     }
 
     return m.vec3.create(px, py, pz);
@@ -196,7 +195,7 @@ export function createMovementController(
 return {
     update(dt, players, activePlayerIndex, canMove) {
       while (bodies.length < players.length) {
-        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false });
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false });
       }
 
       const fwd = camera.getForwardDir();
@@ -233,7 +232,9 @@ return {
 
         const isActive = i === activePlayerIndex;
         const grav = gravityController.getGravity(i);
-        results.push(stepBody(
+        bodies[i].fell = false;
+
+        const newPos = stepBody(
           bodies[i],
           p.posX, p.posY, p.posZ,
           dt,
@@ -242,7 +243,12 @@ return {
           isActive ? inputZ : 0,
           grav.down,
           gravityController.magnitude
-        ));
+        );
+        results.push(newPos);
+
+        if(bodies[i].fell){
+          options.onPlayerFell?.(i);
+        }
       }
 
       const minDist = playerRadius * 2;
@@ -348,7 +354,7 @@ return {
 
     applyExplosion(cx, cy, cz, radius, force, players) {
       while (bodies.length < players.length) {
-        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false });
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false });
       }
 
       for (let i = 0; i < players.length; i++) {
