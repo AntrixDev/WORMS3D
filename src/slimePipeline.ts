@@ -8,13 +8,63 @@ import type { PlayerState } from "./gameState";
 const physicsRadius = 0.4;
 const targetDiameter = 1.2;
 
-function buildModelMat(px: number, py: number, pz: number, yaw: number, groundOffset: number, scale: number ){
+function buildModelMat(
+  px: number,
+  py: number,
+  pz: number,
+  worldFwd: [number, number, number],
+  groundOffset: number,
+  scale: number,
+  gravDown: [number, number, number] =[0, -1, 0],
+) {
+  const footX = px + gravDown[0]*physicsRadius;
+  const footY = py + gravDown[1]*physicsRadius;
+  const footZ = pz + gravDown[2]*physicsRadius;
+
+  const up = m.vec3.normalize(m.vec3.create(-gravDown[0], -gravDown[1], -gravDown[2]));
+
+  const fwdDotUp = worldFwd[0]*up[0] + worldFwd[1]*up[1] + worldFwd[2]*up[2];
+
+  let flatFwd = m.vec3.create(
+    worldFwd[0] - fwdDotUp*up[0],
+    worldFwd[1] - fwdDotUp*up[1],
+    worldFwd[2] - fwdDotUp*up[2],
+  );
+
+  const flatLen = m.vec3.length(flatFwd);
+
+  if (flatLen > 0.001){
+    m.vec3.scale(flatFwd, 1 / flatLen, flatFwd);
+  } else {
+    flatFwd = m.vec3.create(0, 0, 1);
+  }
+
+  const right = m.vec3.normalize(m.vec3.cross(flatFwd, up));
+
+  const s = scale;
   const mat = d.mat4x4f();
   m.mat4.identity(mat);
-  m.mat4.translate(mat, [px, py - physicsRadius, pz], mat);
-  m.mat4.rotateY(mat, yaw + Math.PI, mat);
-  m.mat4.scale(mat, [scale, scale, scale], mat);
-  m.mat4.translate(mat, [0, -groundOffset, 0], mat);
+
+  mat[0] = -right[0]*s;
+  mat[1] = -right[1]*s;
+  mat[2] = -right[2]*s;
+  mat[3] = 0;
+
+  mat[4] = up[0]* s;
+  mat[5] = up[1]* s;
+  mat[6] = up[2]* s;
+  mat[7] = 0;
+
+  mat[8] = flatFwd[0]* s;
+  mat[9] = flatFwd[1]* s;
+  mat[10] = flatFwd[2]* s;
+  mat[11] = 0;
+
+  mat[12] = footX + up[0]*(-groundOffset * s);
+  mat[13] = footY + up[1]*(-groundOffset * s);
+  mat[14] = footZ + up[2]* (-groundOffset * s);
+  mat[15] = 1;
+
   return mat;
 }
 
@@ -46,6 +96,7 @@ export async function createSlimePipeline(
   cameraBuffer: any,
   presentationFormat: GPUTextureFormat,
   players: PlayerState[],
+  gravityController: import("./gravity").GravityController,
 ) {
   const slime = await loadGLBModel("/assets/slime.glb");
 
@@ -133,11 +184,12 @@ export async function createSlimePipeline(
     .createBuffer(d.arrayOf(d.vec4f, materialCount), palette)
     .$usage("storage");
 
-  const playerUniforms = players.map((p)=> 
-    root
-      .createBuffer(ModelUniforms, { model: buildModelMat(p.posX, p.posY, p.posZ, 0, groundOffset, scaleFactor) })
-      .$usage("uniform")
-  );
+  const playerUniforms = players.map((p, i) => {
+    const gd = gravityController.getGravity(i).down;
+    return root
+      .createBuffer(ModelUniforms, { model: buildModelMat(p.posX, p.posY, p.posZ, [0, 0, 1], groundOffset, scaleFactor, [gd[0], gd[1], gd[2]]) })
+      .$usage("uniform");
+  });
 
   const modelLayout = tgpu.bindGroupLayout({
     camera: { uniform: Camera },
@@ -247,10 +299,11 @@ export async function createSlimePipeline(
       px: number,
       py: number,
       pz: number,
-      yaw = 0
+      worldFwd: [number, number, number] = [0, 0, 1],
+      gravDown: [number, number, number] = [0, -1, 0],
     ) {
       if(!playerUniforms[playerIndex]) return;
-      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, yaw, groundOffset, scaleFactor) });
+      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, worldFwd, groundOffset, scaleFactor, gravDown) });
     },
 
     draw(
