@@ -3,7 +3,7 @@ import type { GameState, PlayerState, Weapon, KillLogEntry } from "../gameState"
 import "./gameUI.css"
 import { turnDuration } from "../gameState"
 
-const primaryColor= "#f77298";
+const primaryColor= "#96488A";
 
 const causeLabel: Record<string, string> = {
   void: "fell into the void",
@@ -81,7 +81,7 @@ function PlayerList({ players, currentPlayerIndex }: { players: PlayerState[]; c
         <div className="playerlist-title">PLAYERS</div>
         {players.map((p, i) => {
           const isActive = i === currentPlayerIndex;
-          const hpColor = !p.alive ? "#880000" : p.hp < 30 ? "#ff9100" : primaryColor;
+          const hpColor = !p.alive ? primaryColor : p.hp < 30 ? "#ff9100" : "#000000";
           return (
             <div
               key={p.index}
@@ -198,6 +198,88 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
   );
 }
 
+const killFeedTTL = 5000;
+const animOutMs = 300;
+
+interface FeedItem extends KillLogEntry {
+  id: number;
+  expiresAt: number;
+}
+
+let feedIdCounter=0;
+
+function KillFeedEntry({ item }: { item: FeedItem }) {
+  const [isExiting, setIsExiting] = useState(false);
+
+  useEffect(() => {
+    const timeUntilExitAnim = (item.expiresAt - Date.now()) - animOutMs;
+    const t = setTimeout(() => {
+      setIsExiting(true);
+    }, Math.max(timeUntilExitAnim, 0));
+    return () => clearTimeout(t);
+  }, [item.expiresAt]);
+
+  return (
+    <div className={`killfeed-entry ${isExiting ? "killfeed-animate-out" : "killfeed-animate-in"}`}>
+      <span className="killfeed-cause-icon">{causeIcon[item.cause] ?? "☠️"}</span>
+      <span>
+        <span className="killfeed-victim">{item.victimName}</span>
+        {" "}
+        {causeLabel[item.cause] ?? "died"}
+        {item.killerName && (
+          <>
+            {" "}· killed by{" "}
+            <span className="killfeed-killer">{item.killerName}</span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function KillFeed({ killLog }: { killLog: KillLogEntry[] }) {
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [seenCount, setSeenCount] = useState(0);
+
+  useEffect(() => {
+    if (killLog.length <= seenCount) return;
+    const newEntries = killLog.slice(seenCount);
+    const now = Date.now();
+    
+    const newItems: FeedItem[] = newEntries.map((e) => ({
+      ...e,
+      id: ++feedIdCounter,
+      expiresAt: now + killFeedTTL,
+    }));
+    
+    if (newItems.length > 0) {
+      setItems((prev) => [...prev, ...newItems]);
+    }
+    setSeenCount(killLog.length);
+  }, [killLog, seenCount]);
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    const earliest = Math.min(...items.map((i) => i.expiresAt));
+    const delay = earliest - Date.now();
+    const t = setTimeout(() => {
+      const now = Date.now();
+      setItems((prev) => prev.filter((i) => i.expiresAt > now));
+    }, Math.max(delay, 0));
+    return () => clearTimeout(t);
+  }, [items]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="killfeed">
+      {items.map((item) => (
+        <KillFeedEntry key={item.id} item={item} />
+      ))}
+    </div>
+  );
+}
+
 const deathScreenTotal = 10;
 
 export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory, onDismissDeathScreen }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; }) {
@@ -210,6 +292,7 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
     selectedWeapon,
     inventory,
     inventoryOpen,
+    killLog,
     deathScreenEntry,
     deathScreenTimeLeft,
   } = gameState;
@@ -240,6 +323,9 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
 
   return (
     <div className="hud-container">
+
+      <KillFeed killLog={killLog} />
+
       {phase === "deathScreen" && deathScreenEntry && (
         <DeathScreen
           entry={deathScreenEntry}
@@ -263,6 +349,7 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
           )}
         </>
       )}
+      
       {showPlayerList && <PlayerList players={players} currentPlayerIndex={currentPlayerIndex} />}
     </div>
   );

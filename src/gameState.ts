@@ -23,6 +23,7 @@ export interface Weapon {
     ammo: number;
     icon: string;
 }
+
 export type DeathCause = "void" | "weapon" | "unknown";
 
 export interface KillLogEntry {
@@ -46,6 +47,7 @@ export interface GameState {
     inventory: Weapon[];
     inventoryOpen: boolean;
     cameraMode: "intro" | "thirdPer";
+    killLog: KillLogEntry[];
     deathScreenEntry: KillLogEntry | null;
     deathScreenTimeLeft: number;
 }
@@ -56,7 +58,7 @@ const deathScreenDuration = 10;
 
 const spawnMin = Math.ceil(arenaWallMin);
 const spawnMax = Math.ceil(arenaWallMax);
-const spawnY = arenaFloorY + 0.5;
+const spawnY = arenaFloorY + 0.2;
 
 export const defWeapons: Weapon[] = [
     {id: 1, name: "weap1", ammo: 1, icon: "🚀"},
@@ -115,6 +117,7 @@ export function createInitGameState (
         inventory: [...defWeapons.map(w => ({ ...w }))],
         inventoryOpen: false,
         cameraMode: "intro",
+        killLog: [],
         deathScreenEntry: null,
         deathScreenTimeLeft: 0,
     }
@@ -214,6 +217,8 @@ export class GameStateMachine {
             round: this.state.roundNumber,
             duringOwnTurn,
         };
+
+        this.state.killLog = [...this.state.killLog, entry];
 
         if (duringOwnTurn) {
             this.clearTimers();
