@@ -44,8 +44,14 @@ export function createGameCamera(
     height: 1,
   };
 
-  let mode: "intro" | "third-person" | "first-person" = "intro";
+  let mode: "intro" | "third-person" | "first-person" | "winner" = "intro";
   let introPos = new Float32Array([0, arenaFloorY, 0]);
+
+  const winnerTarget = new Float32Array([0, arenaFloorY, 0]);
+  let winnerAngle = 0;
+  const winnerRadius = 5;
+  const winnerHeight = 2.2;
+  const winnerSpeed = 0.6;
 
   let baseRight = m.vec3.create(1, 0, 0);
   let baseUp = m.vec3.create(0, 1, 0);
@@ -168,6 +174,20 @@ export function createGameCamera(
       m.mat4.lookAt([camX, camY, camZ], targetLookAt, baseUp, viewMat);
       cameraBuffer.patch({ view: viewMat });
       
+    } else if(mode === "winner"){
+      const cx = winnerTarget[0] + Math.cos(winnerAngle) * winnerRadius;
+      const cy = winnerTarget[1] + winnerHeight;
+      const cz = winnerTarget[2] + Math.sin(winnerAngle) * winnerRadius;
+
+      m.mat4.lookAt(
+        [cx, cy, cz],
+        [winnerTarget[0], winnerTarget[1] + 0.6, winnerTarget[2]],
+        [0, 1, 0],
+        viewMat,
+      );
+
+      
+      cameraBuffer.patch({ view: viewMat });
     } else if (mode === "intro") {
       m.mat4.lookAt(introPos, [0, arenaFloorY, 0], [0, 1, 0], viewMat);
       cameraBuffer.patch({ view: viewMat });
@@ -299,8 +319,20 @@ export function createGameCamera(
     getPitch(): number {
       return tpc.pitch;
     },
+    setWinnerTarget(player: PlayerState) {
+      winnerTarget[0] = player.posX;
+      winnerTarget[1] = player.posY;
+      winnerTarget[2] = player.posZ;
+      winnerAngle = 0;
+      mode = "winner";
+      updateView();
+    },
     tick(dt: number) {
       tickTransition(dt);
+      if (mode === "winner") {
+        winnerAngle += dt * winnerSpeed;
+        updateView();
+      }
     },
     isTransitioning(): boolean {
       return transition.active;
@@ -331,6 +363,9 @@ export function createGameCamera(
       m.vec3.normalize(r, r);
 
       return m.vec3.create(r[0], r[1], r[2]);
+    },
+    getMode() {
+      return mode;
     },
   };
 }
