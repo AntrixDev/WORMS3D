@@ -213,6 +213,75 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, players }: { entry
   );
 }
 
+interface RankedRow {
+  player: PlayerState;
+  kills: number;
+  cause: string;
+}
+
+function buildLeaderboard(
+  players: PlayerState[],
+  killLog: KillLogEntry[],
+  winnerIndex: number | null,
+): RankedRow[] {
+  const order: number[] = [];
+  if (winnerIndex !== null) order.push(winnerIndex);
+
+  for (let i = killLog.length - 1; i >= 0; i--) {
+    const vi = killLog[i].victimIndex;
+    if (!order.includes(vi)) order.push(vi);
+  }
+  for (const p of players) if (!order.includes(p.index)) order.push(p.index);
+
+  return order.map((idx) => {
+    const player = players[idx];
+    const kills = killLog.filter((e) => e.killerIndex === idx).length;
+    const deathEntry = killLog.find((e) => e.victimIndex === idx);
+    const cause = player.alive
+      ? "survived"
+      : causeDeath[deathEntry?.cause ?? "unknown"] ?? "unknown";
+    return { player, kills, cause };
+  });
+}
+
+function Leaderboard({
+  players,
+  killLog,
+  winnerIndex,
+}: {
+  players: PlayerState[];
+  killLog: KillLogEntry[];
+  winnerIndex: number | null;
+}) {
+  const rows = buildLeaderboard(players, killLog, winnerIndex);
+
+  return (
+    <div className="leaderboard-panel">
+      <div className="leaderboard-title">LEADERBOARD</div>
+      <div className="leaderboard-list">
+        {rows.map((row, i) => {
+          const medal = i < 3 ? MEDAL_COLORS[i] : "#000000";
+          return (
+            <div className="leaderboard-row" key={row.player.index}>
+              <span className="leaderboard-place" style={{ color: medal }}>
+                {i + 1}
+              </span>
+              <span
+                className="leaderboard-name"
+                style={{ color: medal, fontWeight: i < 3 ? 900 : 700 }}
+              >
+                {row.player.username}
+              </span>
+              <span className="leaderboard-cause">{row.cause}</span>
+              <span className="leaderboard-kills">{row.kills} kills</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function WinnerOverlay({
   winner,
   players,
@@ -239,6 +308,11 @@ function WinnerOverlay({
         </div>
         <div className="winner-sub">{winner ? "last slime standing" : "no survivors"}</div>
       </div>
+      <Leaderboard
+        players={players}
+        killLog={killLog}
+        winnerIndex={winnerIndex}
+      />
       <div className="winner-back-wrap">
         <Button text="BACK TO LOBBY" action={onBackToMenu} />
       </div>
