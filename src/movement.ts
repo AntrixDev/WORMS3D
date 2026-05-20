@@ -3,7 +3,6 @@ import { createGameCamera } from "./camera";
 import type { PlayerState } from "./gameState";
 import type { GravityController } from "./gravity";
 import * as m from "wgpu-matrix";
-import { abs } from "typegpu/std";
 
 function sdBox(p: number[] | m.Vec3, b: number[]): number {
   const dx = Math.abs(p[0]) - b[0];

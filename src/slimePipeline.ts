@@ -142,10 +142,6 @@ export async function createSlimePipeline(
     slime.alphaFlags,
   );
 
-  const opaqueIndexBuffer = root
-    .createBuffer(d.arrayOf(d.u32, opaqueIndices.length), Array.from(opaqueIndices))
-    .$usage("index");
-
   const alphaIndexBuffer = opaqueIndices.length > 0 && alphaIndices.length > 0
     ? root
         .createBuffer(d.arrayOf(d.u32, alphaIndices.length), Array.from(alphaIndices))
@@ -251,24 +247,6 @@ export async function createSlimePipeline(
       format:            "depth24plus",
       depthWriteEnabled: true,
       depthCompare:      "less",
-    },
-    multisample: { count: 4 },
-  });
-
-
-
-  const pipeline = root.createRenderPipeline({
-    attribs: { ...modelVertexLayout.attrib },
-    vertex: modelVertex,
-    fragment: tgpu.fragmentFn({ 
-      in: { color: d.vec4f }, 
-      out: d.vec4f 
-    })((i) => i.color),
-    targets: { format: presentationFormat },
-    depthStencil: { 
-      format: "depth24plus", 
-      depthWriteEnabled: true, 
-      depthCompare: "less" 
     },
     multisample: { count: 4 },
   });
