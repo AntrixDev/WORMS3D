@@ -147,10 +147,19 @@ export async function startGame(playerData: Player[]) {
 
   const reactRoot = createRoot(uiRoot);
   const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players, gravity);
+  const weapons = await createWeaponSystem(root, cameraBuffer, presentationFormat, {
+    gsm,
+    camera: gameCam,
+    gravity,
+    map: mapCtl,
+    canvas,
+    physics,
+  });
 
   const confetti = createConfetti(root, canvas, presentationFormat);
 
   const crosshairEl = document.getElementById("lockedCoursor")!;
+  const strengthFillEl = document.getElementById("strengthFill") as HTMLDivElement;
 
   const slimeVisuals = playerData.map(() => ({
     currentGd: m.vec3.create(0, -1, 0),
@@ -170,6 +179,10 @@ export async function startGame(playerData: Player[]) {
       createElement(GameUI, {
         gameState: gsm.state,
         onSkipIntro: () => gsm.skipIntro(),
+        onSelectWeapon: (w: Weapon) => {
+          gsm.selectWeapon(w);
+          canvas.requestPointerLock();
+        },
         onToggleInventory: () => {
           const willOpen = !gsm.state.inventoryOpen;
           gsm.toggleInventory();
@@ -233,6 +246,7 @@ export async function startGame(playerData: Player[]) {
 
     if (state.phase === "winner") {
       crosshairEl.classList.remove("crosshair");
+      strengthFillEl.style.height = "0%";
       confetti.update(dt);
       drawCubes();
       slime.draw(msaaTexture, depthTexture, context);
@@ -308,12 +322,22 @@ export async function startGame(playerData: Player[]) {
 
       slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number]);
     }
-    crosshairEl.classList.toggle("crosshair");
+
+    if (state.phase === "playing") {
+      gameCam.setWeaponAim(!!state.selectedWeapon && !state.inventoryOpen);
+    }
+
+    weapons.update(dt);
+
+    const ws = weapons.getUIState();
+    crosshairEl.classList.toggle("crosshair", ws.weaponSelected);
+    strengthFillEl.style.height = ws.weaponSelected ? `${Math.max(0, Math.min(1, ws.charge)) * 100}%` : "0%";
 
     const skipIndex = gameCam.getMode() === "first-person" ? state.currentPlayerIndex : -1;
 
     drawCubes();
     slime.draw(msaaTexture, depthTexture, context, skipIndex);
+    weapons.draw(msaaTexture, depthTexture, context);
 
     requestAnimationFrame(frame);
   }
