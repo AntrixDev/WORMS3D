@@ -1,5 +1,6 @@
 import { arenaFloorY, arenaWallMax, arenaWallMin } from "./map";
 import { colorAt, defaultColorIndex } from "./colors";
+import { faceCount } from "./gravity";
 
 export type GamePhase = "intro" | "playing" | "deathScreen" | "winner";
 
@@ -19,6 +20,7 @@ export interface PlayerState {
     colorIndex: number;
     color: string;
     colorName: string;
+    gravityFaceIndex: number;
 }
 
 export interface Weapon {
@@ -62,7 +64,10 @@ const deathScreenDuration = 10;
 
 const spawnMin = Math.ceil(arenaWallMin);
 const spawnMax = Math.ceil(arenaWallMax);
-const spawnY = arenaFloorY + 0.2;
+
+const nearLOW = arenaWallMin - 0.3;  
+const nearHIGH = arenaWallMax + 0.3; 
+void arenaFloorY;
 
 export const defWeapons: Weapon[] = [
     {id: 1, name: "Rocket Launcher", ammo: 2, icon: "🚀"},
@@ -73,20 +78,41 @@ function randomSpawnCord(): number {
     return Math.floor(Math.random() * (spawnMax - spawnMin+1)) + spawnMin;
 }
 
-function generateSpawns(count: number): Array<{x: number; z: number}> {
-    const used = new Set<string>();
-    const result: Array<{x: number; z: number}> = [];
+function spawnForFace(faceIdx: number, a: number, b: number): { x: number; y: number; z: number } {
+    switch (faceIdx) {
+        case 0: return { x: a, y: nearLOW, z: b };
+        case 1: return { x: a, y: nearHIGH, z: b };
+        case 2: return { x: nearLOW, y: a, z: b };
+        case 3: return { x: nearHIGH, y: a, z: b };
+        case 4: return { x: a, y: b, z: nearLOW };
+        case 5: return { x: a, y: b, z: nearHIGH };
+        default: return { x: a, y: nearLOW, z: b };
+    }
+}
 
-    for(let i=0; i< count; i++){
-        let x: number, z: number, cords: string;
+function generateSpawnsWithGravity(
+    count: number,
+): Array<{ faceIdx: number; x: number; y: number; z: number }> {
+    const usedPerFace: Map<number, Set<string>> = new Map();
+    for (let i = 0; i < faceCount; i++) usedPerFace.set(i, new Set());
 
-        do{
-            x= randomSpawnCord();
-            z= randomSpawnCord();
-            cords = `${x},${z}`;
-        }while(used.has(cords));
-        used.add(cords);
-        result.push({ x, z });
+    const result: Array<{ faceIdx: number; x: number; y: number; z: number }> = [];
+
+    for (let i = 0; i < count; i++) {
+        const faceIdx = Math.floor(Math.random() * faceCount);
+        const slots = usedPerFace.get(faceIdx)!;
+
+        let a: number, b: number, key: string;
+        let attempts = 0;
+        do {
+            a = randomSpawnCord();
+            b = randomSpawnCord();
+            key = `${a},${b}`;
+            attempts++;
+        } while (slots.has(key) && attempts < 50);
+        slots.add(key);
+
+        result.push({ faceIdx, ...spawnForFace(faceIdx, a, b) });
     }
 
     return result;
@@ -95,7 +121,7 @@ function generateSpawns(count: number): Array<{x: number; z: number}> {
 export function createInitGameState (
     players: {username: string; colorIndex?: number}[]
 ): GameState {
-    const spawns = generateSpawns(players.length);
+    const spawns = generateSpawnsWithGravity(players.length);
 
     const playerStatus: PlayerState[] = players.map((p, i) => {
     const ci = p.colorIndex ?? defaultColorIndex;
@@ -107,13 +133,14 @@ export function createInitGameState (
         spawnX: spawns[i].x,
         spawnZ: spawns[i].z,
         posX: spawns[i].x,
-        posY: spawnY,
+        posY: spawns[i].y,
         posZ: spawns[i].z,
         yaw: 0,
         alive: true,
         colorIndex: ci,
         color: c.hex,
-        colorName: c.name
+        colorName: c.name,
+        gravityFaceIndex: spawns[i].faceIdx,
     };
     });
 
