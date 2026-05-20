@@ -11,6 +11,23 @@ import { cubeInstance } from "./map";
 import type { createGameCamera } from "./camera";
 import type { PhysicsController } from "./movement";
 
+const chargeTime = 2;       
+const fuseTime = 1.5;       
+const MINspeed = 8;         
+const MAXspeed = 44;         
+const gravityScale = 1.3;    
+const rollRate = 0.5;        
+const explRadius = 6;       
+const outerRadius = 10;     
+const innerDamage = 40;
+const outerDamage = 10;
+const grenadeRadius = 0.25; 
+const restitution = 0.55;     
+const heldDiameter = 0.45;
+const grenadeDiameter = 0.4;
+const MAXinstances = 16;
+const MAXgrenades = 8;
+
 const rocketSPEED = 40;
 const rocketRADIUS = 0.25;               
 const rocketRadiusDESTROY = 5;          
@@ -31,6 +48,18 @@ interface Rocket {
 }
 
 type Vec3 = [number, number, number];
+
+interface Grenade {
+  pos: Vec3;
+  vel: Vec3;
+  gd: Vec3;
+  mag: number;
+  fuse: number;
+  owner: number;
+  c0: Vec3;
+  c1: Vec3;
+  c2: Vec3;
+}
 
 function rotateAboutAxis(v: Vec3, a: Vec3, cos: number, sin: number): Vec3 {
   const cross: Vec3 = [
@@ -102,6 +131,9 @@ export async function createWeaponSystem(
     (minY + maxY) / 2,
     (minZ + maxZ) / 2,
   ];
+  const maxExtent = Math.max(maxX - minX, maxY - minY, maxZ - minZ) || 1;
+  const heldScale = heldDiameter / maxExtent;
+  const grenadeScale = grenadeDiameter / maxExtent;
 
   function buildMat(
     px: number, py: number, pz: number,
@@ -162,6 +194,17 @@ export async function createWeaponSystem(
     modelUniforms: { uniform: ModelUniforms },
     palette: { storage: d.arrayOf(d.vec4f) },
   });
+
+  const uniformPool = Array.from({ length: MAXinstances }, () =>
+    root.createBuffer(ModelUniforms, { model: buildMat(0, -9999, 0, grenadeScale) }).$usage("uniform"),
+  );
+  const bindPool = uniformPool.map((ub: any) =>
+    root.createBindGroup(modelLayout, {
+      camera: cameraBuffer,
+      modelUniforms: ub,
+      palette: paletteBuffer,
+    }),
+  );
 
   const modelVertex = tgpu.vertexFn({
     in: { position: d.vec3f, normal: d.vec3f, materialId: d.u32 },
@@ -295,6 +338,7 @@ export async function createWeaponSystem(
 
   const rocketFarFiller = { model: m.mat4.translation([1e7, 1e7, 1e7], d.mat4x4f()) };
 
+  const grenades: Grenade[] = [];
   const rockets: Rocket[] = [];
   let charging = false;
   let charge = 0;
@@ -361,6 +405,26 @@ export async function createWeaponSystem(
     gsm.notifyWeaponDetonated();
   }
 
+  function grenadeSelectedAndAimed(): boolean {
+    const s = gsm.state;
+    return (
+      s.phase === "playing" &&
+      !s.inventoryOpen &&
+      s.selectedWeapon?.name === "Grenade"
+    );
+  }
+
+  function canCharge(): boolean {
+    const p = activePlayer();
+    return (
+      grenadeSelectedAndAimed() &&
+      document.pointerLockElement === canvas &&
+      !!p && p.alive &&
+      !charging &&
+      grenades.length < MAXgrenades
+    );
+  }
+
   function aimSetup() {
     const p = activePlayer();
     if (!p) return null;
@@ -382,8 +446,217 @@ export async function createWeaponSystem(
     };
   }
 
+  function chargedSpeed() {
+    return MINspeed + charge * (MAXspeed - MINspeed);
+  }
+
+  function throwGrenade() {
+    charging = false;
+    const a = aimSetup();
+    if (!a) { charge = 0; return; }
+
+    const speed = chargedSpeed();
+
+    grenades.push({
+      pos: [a.spawn[0], a.spawn[1], a.spawn[2]],
+      vel: [a.aim[0] * speed, a.aim[1] * speed, a.aim[2] * speed],
+      gd: a.gd,
+      mag: gravity.magnitude,
+      fuse: fuseTime,
+      owner: a.idx,
+      c0: [1, 0, 0],
+      c1: [0, 1, 0],
+      c2: [0, 0, 1],
+    });
+
+    charge = 0;
+    gsm.notifyWeaponFired();
+  }
+
+  function previewAscending(): { points: Vec3[]; camPos: Vec3 } | null {
+    if (!grenadeSelectedAndAimed()) return null;
+    const p = activePlayer();
+    if (!p) return null;
+
+    const up = camera.getUpDir();       
+    const right = camera.getRightDir(); 
+    const fwd = camera.getForwardDir();  
+    const aim = camera.getAimDir();     
+
+    const bombCenter: Vec3 = [
+      p.posX + up[0] * 0.18 + right[0] * 0.40 + fwd[0] * 0.70,
+      p.posY + up[1] * 0.18 + right[1] * 0.40 + fwd[1] * 0.70,
+      p.posZ + up[2] * 0.18 + right[2] * 0.40 + fwd[2] * 0.70,
+    ];
+
+    let vrx = aim[1] * up[2] - aim[2] * up[1];
+    let vry = aim[2] * up[0] - aim[0] * up[2];
+    let vrz = aim[0] * up[1] - aim[1] * up[0];
+    let vrl = Math.hypot(vrx, vry, vrz);
+    if (vrl < 0.001) { vrx = right[0]; vry = right[1]; vrz = right[2]; vrl = 1; }
+    vrx /= vrl; vry /= vrl; vrz /= vrl;
+    const vux = vry * aim[2] - vrz * aim[1];
+    const vuy = vrz * aim[0] - vrx * aim[2];
+    const vuz = vrx * aim[1] - vry * aim[0];
+
+    const fuseOff = 0.18;
+    const start: Vec3 = [
+      bombCenter[0] + vux * fuseOff,
+      bombCenter[1] + vuy * fuseOff,
+      bombCenter[2] + vuz * fuseOff,
+    ];
+
+    const idx = gsm.state.currentPlayerIndex;
+    const gd = gravity.getGravity(idx).down;
+    const worldUp: Vec3 = [-gd[0], -gd[1], -gd[2]];
+
+    const camPos: Vec3 = [
+      p.posX + up[0] * FPeyeHeight,
+      p.posY + up[1] * FPeyeHeight,
+      p.posZ + up[2] * FPeyeHeight,
+    ];
+
+    const vUp0 = aim[0] * worldUp[0] + aim[1] * worldUp[1] + aim[2] * worldUp[2];
+
+    if (vUp0 <= 0) {
+      const stubLen = 0.35 + charge * 0.45;
+      const end: Vec3 = [
+        start[0] + aim[0] * stubLen,
+        start[1] + aim[1] * stubLen,
+        start[2] + aim[2] * stubLen,
+      ];
+      return { points: [start, end], camPos };
+    }
+
+    const speed = chargedSpeed();
+    const mag = gravity.magnitude * gravityScale;
+    const pos: Vec3 = [start[0], start[1], start[2]];
+    const vel: Vec3 = [aim[0] * speed, aim[1] * speed, aim[2] * speed];
+    const pts: Vec3[] = [[pos[0], pos[1], pos[2]]];
+
+    const stepDt = 0.04;
+    const maxSteps = 220;
+    const maxPoints = 25;
+
+    for (let i = 0; i < maxSteps; i++) {
+      vel[0] += gd[0] * mag * stepDt;
+      vel[1] += gd[1] * mag * stepDt;
+      vel[2] += gd[2] * mag * stepDt;
+      pos[0] += vel[0] * stepDt;
+      pos[1] += vel[1] * stepDt;
+      pos[2] += vel[2] * stepDt;
+
+      if (getSceneSDF(pos[0], pos[1], pos[2]) < grenadeRadius) {
+        pts.push([pos[0], pos[1], pos[2]]);
+        break;
+      }
+
+      pts.push([pos[0], pos[1], pos[2]]);
+
+      const vUp = vel[0] * worldUp[0] + vel[1] * worldUp[1] + vel[2] * worldUp[2];
+      if (vUp <= 0) break;          
+      if (pts.length >= maxPoints) break;
+    }
+    return { points: pts, camPos };
+  }
+
+  function detonate(g: Grenade) {
+    const [x, y, z] = g.pos;
+    map.destroySphere(x, y, z, explRadius);
+    gsm.applyExplosionDamage(
+      x, y, z,
+      explRadius, innerDamage,
+      outerRadius, outerDamage,
+      g.owner,
+    );
+    physics.applyExplosion(x, y, z, outerRadius, granadeKnockbackForce, gsm.state.players);
+    gsm.notifyWeaponDetonated();
+  }
+
+  window.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    if (canCharge()) {
+      charging = true;
+      charge = 0;
+      return;
+    }
+    if (canFireRocket()) {
+      fireRocket();
+    }
+  });
+
+  window.addEventListener("mouseup", (e) => {
+    if (e.button !== 0) return;
+    if (charging) throwGrenade();
+  });
+
   return {
     update(dt: number) {
+      if (charging) {
+        if (!grenadeSelectedAndAimed() || document.pointerLockElement !== canvas) {
+          charging = false;
+          charge = 0;
+        } else {
+          charge = Math.min(1, charge + dt / chargeTime);
+          if (charge >= 1) throwGrenade();
+        }
+      }
+
+      for (let i = grenades.length - 1; i >= 0; i--) {
+        const g = grenades[i];
+
+        g.vel[0] += g.gd[0] * g.mag * gravityScale * dt;
+        g.vel[1] += g.gd[1] * g.mag * gravityScale * dt;
+        g.vel[2] += g.gd[2] * g.mag * gravityScale * dt;
+
+        g.pos[0] += g.vel[0] * dt;
+        g.pos[1] += g.vel[1] * dt;
+        g.pos[2] += g.vel[2] * dt;
+
+        for (let iter = 0; iter < 2; iter++) {
+          const dist = getSceneSDF(g.pos[0], g.pos[1], g.pos[2]);
+          if (dist < grenadeRadius) {
+            const [nx, ny, nz] = sdfNormal(g.pos[0], g.pos[1], g.pos[2]);
+            const pen = grenadeRadius - dist;
+            g.pos[0] += nx * pen;
+            g.pos[1] += ny * pen;
+            g.pos[2] += nz * pen;
+
+            const vn = g.vel[0] * nx + g.vel[1] * ny + g.vel[2] * nz;
+            if (vn < 0) {
+              g.vel[0] -= (1 + restitution) * vn * nx;
+              g.vel[1] -= (1 + restitution) * vn * ny;
+              g.vel[2] -= (1 + restitution) * vn * nz;
+              g.vel[0] *= 0.92;
+              g.vel[1] *= 0.92;
+              g.vel[2] *= 0.92;
+            }
+          }
+        }
+
+        const sp = Math.hypot(g.vel[0], g.vel[1], g.vel[2]);
+        if (sp > 1e-4) {
+          let ax = -g.gd[1] * g.vel[2] - -g.gd[2] * g.vel[1];
+          let ay = -g.gd[2] * g.vel[0] - -g.gd[0] * g.vel[2];
+          let az = -g.gd[0] * g.vel[1] - -g.gd[1] * g.vel[0];
+          let al = Math.hypot(ax, ay, az);
+          if (al < 1e-5) { ax = 1; ay = 0; az = 0; al = 1; }
+          ax /= al; ay /= al; az /= al;
+          const ang = sp * rollRate * dt;
+          const c = Math.cos(ang);
+          const s = Math.sin(ang);
+          const axis: Vec3 = [ax, ay, az];
+          g.c0 = rotateAboutAxis(g.c0, axis, c, s);
+          g.c1 = rotateAboutAxis(g.c1, axis, c, s);
+          g.c2 = rotateAboutAxis(g.c2, axis, c, s);
+        }
+
+        g.fuse -= dt;
+        if (g.fuse <= 0) {
+          detonate(g);
+          grenades.splice(i, 1);
+        }
+      }
 
       for (let i = rockets.length - 1; i >= 0; i--) {
         const r = rockets[i];
@@ -421,9 +694,35 @@ export async function createWeaponSystem(
         c0?: Vec3; c1?: Vec3; c2?: Vec3;
       }> = [];
 
+      if (grenadeSelectedAndAimed()) {
+        const p = activePlayer();
+        if (p && p.alive) {
+          const fwd = camera.getForwardDir();
+          const right = camera.getRightDir();
+          const up = camera.getUpDir();
+          instances.push({
+            x: p.posX + up[0] * 0.18 + right[0] * 0.40 + fwd[0] * 0.70,
+            y: p.posY + up[1] * 0.18 + right[1] * 0.40 + fwd[1] * 0.70,
+            z: p.posZ + up[2] * 0.18 + right[2] * 0.40 + fwd[2] * 0.70,
+            scale: heldScale,
+          });
+        }
+      }
 
-      const drawCount = Math.min(instances.length);
+      for (const g of grenades) {
+        instances.push({
+          x: g.pos[0], y: g.pos[1], z: g.pos[2], scale: grenadeScale,
+          c0: g.c0, c1: g.c1, c2: g.c2,
+        });
+      }
+
+
+      const drawCount = Math.min(instances.length, MAXinstances);
       for (let i = 0; i < drawCount; i++) {
+        const inst = instances[i];
+        uniformPool[i].write({
+          model: buildMat(inst.x, inst.y, inst.z, inst.scale, inst.c0, inst.c1, inst.c2),
+        });
 
         pipeline
           .withColorAttachment({
@@ -438,6 +737,7 @@ export async function createWeaponSystem(
             depthStoreOp: "store",
           })
           .with(modelVertexLayout, vertexBuffer)
+          .with(bindPool[i])
           .withIndexBuffer(indexBuffer)
           .drawIndexed(model.indexCount);
       }
@@ -494,5 +794,7 @@ export async function createWeaponSystem(
         charge,
       };
     },
+
+    previewAscending,
   };
 }

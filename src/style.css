@@ -76,3 +76,35 @@ div#lockedCoursor.crosshair::after {
   width: 100%;
   transform: translateY(-50%);
 }
+
+div#strengthBar {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  width: 10px;
+  height: 80px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.752);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.211);
+  display: none;
+  overflow: hidden;
+}
+
+div#lockedCoursor.crosshair div#strengthBar {
+  display: block;
+}
+
+div#strengthFill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 0%;
+  border-radius: 4px;
+  background: linear-gradient(to top, #ffd200 0%, #ff7a00 55%, #ff1a00 100%);
+  transition: height 0.06s linear;
+}
+
