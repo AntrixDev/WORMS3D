@@ -57,6 +57,7 @@ export interface GameState {
     deathScreenEntry: KillLogEntry | null;
     deathScreenTimeLeft: number;
     winnerIndex: number | null;
+    weaponUsed: boolean;
 }
 
 export const turnDuration = 50;
@@ -160,6 +161,7 @@ export function createInitGameState (
         deathScreenEntry: null,
         deathScreenTimeLeft: 0,
         winnerIndex: null,
+        weaponUsed: false,
     }
 }
 
@@ -176,6 +178,7 @@ export class GameStateMachine {
     private turnTimer: ReturnType<typeof setInterval> | null=null;
     private fireTimer: ReturnType<typeof setTimeout> | null=null;
     private deathTimer: ReturnType<typeof setInterval> | null=null;
+    private weaponWaitTimer: ReturnType<typeof setTimeout> | null=null;
 
     constructor(players: { username: string; characterIndex?: number; colorIndex?: number }[]) {
         this.state = createInitGameState(players);
@@ -224,6 +227,7 @@ export class GameStateMachine {
         this.state.phase = "playing";
         this.state.turnTimeLeft = turnDuration;
         this.state.cameraMode = "thirdPer";
+        this.state.weaponUsed = false;
         this.emit();
 
         this.onCameraThirdPerson?.(cur);
@@ -267,6 +271,7 @@ export class GameStateMachine {
             this.state.phase = "winner";
             this.state.winnerIndex = alive.length === 1 ? alive[0].index : null;
             this.state.inventoryOpen = false;
+            this.state.selectedWeapon = null;
             this.state.deathScreenEntry = null;
             this.emit();
             this.onWinner?.(alive[0] ?? null);
@@ -293,6 +298,44 @@ export class GameStateMachine {
         }
     }
 
+    applyExplosionDamage(
+        cx: number,
+        cy: number,
+        cz: number,
+        innerRadius: number,
+        innerDamage: number,
+        outerRadius: number,
+        outerDamage: number,
+        killerIndex: number | null = null,
+    ) {
+        const innerR2 = innerRadius * innerRadius;
+        const outerR2 = outerRadius * outerRadius;
+        let changed = false;
+
+        for (const p of this.state.players) {
+            if (!p.alive) continue;
+
+            const dx = p.posX - cx;
+            const dy = p.posY - cy;
+            const dz = p.posZ - cz;
+            const distSq = dx * dx + dy * dy + dz * dz;
+
+            let damage = 0;
+            if (distSq <= innerR2) damage = innerDamage;
+            else if (distSq <= outerR2) damage = outerDamage;
+            else continue;
+
+            p.hp -= damage;
+            changed = true;
+            if (p.hp <= 0) {
+                p.hp = 0;
+                this.killPlayer(p.index, "weapon", killerIndex);
+            }
+        }
+
+        if (changed) this.emit();
+    }
+
     dismissDeathScreen() {
         if (this.state.phase !== "deathScreen") return;
         this.clearTimers();
@@ -301,15 +344,32 @@ export class GameStateMachine {
     }
 
     toggleInventory() {
-        if(this.state.phase !== "playing") return;
+        if(this.state.phase !== "playing" || this.state.weaponUsed) return;
         this.state.inventoryOpen = !this.state.inventoryOpen;
         this.emit();
     }
 
     openInventory() {
-        if (this.state.phase !== "playing") return;
+        if (this.state.phase !== "playing" || this.state.weaponUsed) return;
         this.state.inventoryOpen = true;
         this.emit();
+    }
+
+    notifyWeaponFired() {
+        if (this.state.phase !== "playing" || this.state.weaponUsed) return;
+        this.state.weaponUsed = true;
+        this.state.selectedWeapon = null;
+        this.state.inventoryOpen = false;
+        if (this.turnTimer) { clearInterval(this.turnTimer); this.turnTimer = null; }
+        this.emit();
+    }
+
+    notifyWeaponDetonated() {
+        if (this.state.phase !== "playing" || this.weaponWaitTimer) return;
+        this.weaponWaitTimer = setTimeout(() => {
+            this.weaponWaitTimer = null;
+            if (this.state.phase === "playing") this.advanceTurn();
+        }, 1800);
     }
 
     closeInventory() {
@@ -318,7 +378,7 @@ export class GameStateMachine {
     }
 
     selectWeapon(weapon: Weapon) {
-        if(this.state.phase !== "playing") return;
+        if(this.state.phase !== "playing" || this.state.weaponUsed) return;
         this.state.selectedWeapon = weapon;
         this.state.inventoryOpen = false;
         this.emit();
@@ -359,6 +419,7 @@ export class GameStateMachine {
         if (this.turnTimer) { clearInterval(this.turnTimer); this.turnTimer = null; }
         if (this.fireTimer) { clearTimeout(this.fireTimer); this.fireTimer = null; }
         if(this.deathTimer) { clearInterval(this.deathTimer); this.deathTimer = null; }
+        if(this.weaponWaitTimer) { clearTimeout(this.weaponWaitTimer); this.weaponWaitTimer = null; }
     }
 
     get currentPlayer(): PlayerState {
