@@ -1,6 +1,7 @@
 import { arenaFloorY, arenaWallMax, arenaWallMin } from "./map";
+import { colorAt, defaultColorIndex } from "./colors";
 
-export type GamePhase = "intro" | "playing" | "deathScreen";
+export type GamePhase = "intro" | "playing" | "deathScreen" | "winner";
 
 export interface PlayerState {
     index: number;
@@ -15,6 +16,9 @@ export interface PlayerState {
     posZ: number;
     yaw: number;
     alive: boolean;
+    colorIndex: number;
+    color: string;
+    colorName: string;
 }
 
 export interface Weapon {
@@ -89,11 +93,14 @@ function generateSpawns(count: number): Array<{x: number; z: number}> {
 }
 
 export function createInitGameState (
-    players: {username: string;}[]
+    players: {username: string; colorIndex?: number}[]
 ): GameState {
     const spawns = generateSpawns(players.length);
 
-    const playerStatus: PlayerState[] = players.map((p, i) => ({
+    const playerStatus: PlayerState[] = players.map((p, i) => {
+    const ci = p.colorIndex ?? defaultColorIndex;
+    const c = colorAt(ci);
+    return {
         index: i,
         username: p.username,
         hp: 100,
@@ -104,7 +111,11 @@ export function createInitGameState (
         posZ: spawns[i].z,
         yaw: 0,
         alive: true,
-    }));
+        colorIndex: ci,
+        color: c.hex,
+        colorName: c.name
+    };
+    });
 
     return{
         phase: "intro",
@@ -136,7 +147,7 @@ export class GameStateMachine {
     private fireTimer: ReturnType<typeof setTimeout> | null=null;
     private deathTimer: ReturnType<typeof setInterval> | null=null;
 
-    constructor(players: { username: string; characterIndex?: number }[]) {
+    constructor(players: { username: string; characterIndex?: number; colorIndex?: number }[]) {
         this.state = createInitGameState(players);
     }
 
@@ -267,6 +278,7 @@ export class GameStateMachine {
     selectWeapon(weapon: Weapon) {
         if(this.state.phase !== "playing") return;
         this.state.selectedWeapon = weapon;
+        this.state.inventoryOpen = false;
         this.emit();
     }
 
