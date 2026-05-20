@@ -45,3 +45,34 @@ div#root {
 div#root * {
   pointer-events: auto;
 }
+
+div#lockedCoursor.crosshair {
+  width: 24px;
+  height: 24px;
+  background-color: transparent;
+  border-radius: 0;
+}
+
+div#lockedCoursor.crosshair::before,
+div#lockedCoursor.crosshair::after {
+  content: "";
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.85);
+}
+
+div#lockedCoursor.crosshair::before {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+div#lockedCoursor.crosshair::after {
+  top: 50%;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  transform: translateY(-50%);
+}

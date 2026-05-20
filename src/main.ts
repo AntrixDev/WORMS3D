@@ -150,6 +150,8 @@ export async function startGame(playerData: Player[]) {
 
   const confetti = createConfetti(root, canvas, presentationFormat);
 
+  const crosshairEl = document.getElementById("lockedCoursor")!;
+
   const slimeVisuals = playerData.map(() => ({
     currentGd: m.vec3.create(0, -1, 0),
     currentFwd: m.vec3.create(0, 0, -1),
@@ -230,6 +232,7 @@ export async function startGame(playerData: Player[]) {
     gameCam.tick(dt);
 
     if (state.phase === "winner") {
+      crosshairEl.classList.remove("crosshair");
       confetti.update(dt);
       drawCubes();
       slime.draw(msaaTexture, depthTexture, context);
@@ -305,6 +308,7 @@ export async function startGame(playerData: Player[]) {
 
       slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number]);
     }
+    crosshairEl.classList.toggle("crosshair");
 
     const skipIndex = gameCam.getMode() === "first-person" ? state.currentPlayerIndex : -1;
 
