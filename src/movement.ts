@@ -70,11 +70,14 @@ interface PhysicsBody {
   velZ: number;
   isOnGround: boolean;
   fell: boolean;
+  blastTimer: number;
 }
 
 const jumpVel = 10;
 const moveAcc = 60;
-const friction = 10;
+const friction = 10;       
+const blastFriction = 0.7; 
+const blastCooldown = 1.2; 
 const playerRadius = 0.4;
 export const fallReset = (arenaInnerSize + arenaLayers-1 * 2)*4;
 
@@ -116,7 +119,7 @@ export function createMovementController(
   window.addEventListener("keyup", (e) => activeKeys.delete(e.code));
 
   const bodies: PhysicsBody[] = initialPlayers.map(() => ({
-    velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false,
+    velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false, blastTimer: 0,
   }));
 
   function stepBody(
@@ -131,8 +134,10 @@ export function createMovementController(
     body.velY += inputY * moveAcc * dt;
     body.velZ += inputZ * moveAcc * dt;
 
-    const frictionMult = Math.exp(-friction * dt);
-    const velDotDown = body.velX * gravDown[0] + body.velY * gravDown[1] + body.velZ * gravDown[2];
+    if (body.blastTimer > 0) body.blastTimer = Math.max(0, body.blastTimer - dt);
+    const k = body.blastTimer > 0 ? blastFriction : friction;
+    const frictionMult = Math.exp(-k * dt);
+    const velDotDown = body.velX * gravDown[0]+ body.velY * gravDown[1] + body.velZ * gravDown[2];
 
     const latX = body.velX - velDotDown * gravDown[0];
     const latY = body.velY - velDotDown * gravDown[1];
@@ -194,7 +199,7 @@ export function createMovementController(
 return {
     update(dt, players, activePlayerIndex, canMove) {
       while (bodies.length < players.length) {
-        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false });
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false, blastTimer: 0 });
       }
 
       const fwd = camera.getForwardDir();
@@ -353,33 +358,48 @@ return {
 
     applyExplosion(cx, cy, cz, radius, force, players) {
       while (bodies.length < players.length) {
-        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false });
+        bodies.push({ velX: 0, velY: 0, velZ: 0, isOnGround: false, fell: false, blastTimer: 0 });
       }
+
+      const UPbias = 0.6;
 
       for (let i = 0; i < players.length; i++) {
         const p = players[i];
-        if (!p.alive) continue;
+        if(!p.alive) continue;
 
         const dx = p.posX - cx;
         const dy = p.posY - cy;
         const dz = p.posZ - cz;
-        const distSq = dx * dx + dy * dy + dz * dz;
-        const dist   = Math.sqrt(distSq);
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        if (dist > radius) continue;
+        if(dist > radius) continue;
 
-        const falloff  = 1 - dist / radius;
-        const impulse  = force * falloff;
+        const f = 1 - dist / radius;
+        const impulse = force * f * f;
 
-        if (dist < 0.001) {
-          bodies[i].velY += impulse;
-        } else {
-          bodies[i].velX += (dx / dist) * impulse;
-          bodies[i].velY += (dy / dist) * impulse;
-          bodies[i].velZ += (dz / dist) * impulse;
+        const grav = gravityController.getGravity(i);
+        const ux = -grav.down[0];
+        const uy = -grav.down[1];
+        const uz = -grav.down[2];
+
+        let rx: number, ry: number, rz: number;
+        if(dist < 0.001){
+          rx = ux; ry = uy; rz = uz;
+        }else{
+          rx = dx / dist; ry = dy / dist; rz = dz / dist;
         }
 
+        let pdx = rx + ux * UPbias;
+        let pdy = ry + uy * UPbias;
+        let pdz = rz + uz * UPbias;
+        const pl = Math.hypot(pdx, pdy, pdz) || 1;
+        pdx /= pl; pdy /= pl; pdz /= pl;
+
+        bodies[i].velX += pdx * impulse;
+        bodies[i].velY += pdy * impulse;
+        bodies[i].velZ += pdz * impulse;
         bodies[i].isOnGround = false;
+        bodies[i].blastTimer = blastCooldown;
       }
     },
 

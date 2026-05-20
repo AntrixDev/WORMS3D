@@ -5,7 +5,7 @@ export interface GravityState{
     label: string;
 }
 
-const faceGravity: GravityState[] = [
+export const faceGravity: GravityState[] = [
     { down: m.vec3.create(0, -1, 0), label: "floor " }, 
     { down: m.vec3.create(0,  1, 0), label: "ceiling" },
     { down: m.vec3.create(-1,  0, 0), label: "left" },
@@ -13,6 +13,8 @@ const faceGravity: GravityState[] = [
     { down: m.vec3.create(0,  0, -1), label: "back" },
     { down: m.vec3.create(0,  0, 1), label: "front" },
 ]
+
+export const faceCount = faceGravity.length;
 
 const defaultGravity: GravityState = {
    down: m.vec3.create(0, -1, 0), label: "defFloor",
@@ -47,12 +49,17 @@ export interface GravityController {
 
 export function GravityController(
     playerCount: number,
-    magnitude = 25
+    magnitude = 25,
+    initialFaces?: (number | undefined)[],
 ): GravityController{
 
     const states: GravityState[] = Array.from(
         { length: playerCount },
-        () => defaultGravity
+        (_, i) => {
+            const idx = initialFaces?.[i];
+            if (idx !== undefined && faceGravity[idx]) return faceGravity[idx];
+            return defaultGravity;
+        }
     );
 
     return {
