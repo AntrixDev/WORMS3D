@@ -2,8 +2,10 @@ import tgpu, { d, std, common } from "typegpu";
 import * as m from "wgpu-matrix";
 import { Camera, createGameCamera } from "./camera";
 import { vertexLayout, createCubeBuffer} from "./geometry";
-import { checkPosition, cubeInstance, cubeCount, createPlateBuffer} from "./map";
+import { cubeInstance, createMapController } from "./map";
 import { createSlimePipeline } from "./slimePipeline";
+import { createWeaponSystem } from "./weapons";
+import { createConfetti } from "./confetti";
 import { forEach } from "@loaders.gl/core";
 import { GameStateMachine } from "./gameState";
 import type { Weapon } from "./gameState";
@@ -16,6 +18,7 @@ import { GravityController, lookDirFromYawPitch } from "./gravity";
 interface Player{
   username: string
   characterIndex?: number;
+  colorIndex?: number;
 }
 
 export async function startGame(playerData: Player[]) {
@@ -31,18 +34,24 @@ export async function startGame(playerData: Player[]) {
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
   const gsm = new GameStateMachine(playerData);
-  const gravity = GravityController(playerData.length);
+  const gravity = GravityController(
+    playerData.length,
+    undefined,
+    gsm.state.players.map((p) => p.gravityFaceIndex),
+  );
 
   const gameCam = createGameCamera(
     root,
     canvas,
     () => gsm.state.inventoryOpen,
     () => gsm.closeInventory(),
+    () => gsm.state.phase !== "winner",
   );
 
   const cameraBuffer = gameCam.cameraBuffer;
   const cubeBuffer = createCubeBuffer(root);
-  const instanceBuffer = createPlateBuffer(root);
+  const mapCtl = createMapController(root);
+  const instanceBuffer = mapCtl.buffer;
 
   const cubeLayout = tgpu.bindGroupLayout({
     camera: { uniform: Camera },
@@ -139,6 +148,8 @@ export async function startGame(playerData: Player[]) {
   const reactRoot = createRoot(uiRoot);
   const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players, gravity);
 
+  const confetti = createConfetti(root, canvas, presentationFormat);
+
   const slimeVisuals = playerData.map(() => ({
     currentGd: m.vec3.create(0, -1, 0),
     currentFwd: m.vec3.create(0, 0, -1),
@@ -146,7 +157,10 @@ export async function startGame(playerData: Player[]) {
   }));
 
   function renderUI() {
-    if (gsm.state.phase === "deathScreen" && document.pointerLockElement === canvas) {
+    if (
+      (gsm.state.phase === "deathScreen" || gsm.state.phase === "winner") &&
+      document.pointerLockElement === canvas
+    ) {
       document.exitPointerLock();
     }
 
@@ -154,14 +168,13 @@ export async function startGame(playerData: Player[]) {
       createElement(GameUI, {
         gameState: gsm.state,
         onSkipIntro: () => gsm.skipIntro(),
-        onSelectWeapon: (w: Weapon) => gsm.selectWeapon(w),
         onToggleInventory: () => {
           const willOpen = !gsm.state.inventoryOpen;
           gsm.toggleInventory();
           if (willOpen) document.exitPointerLock();
           else canvas.requestPointerLock();
         },
-        onDismissDeathScreen: () => gsm.dismissDeathScreen(), 
+        onDismissDeathScreen: () => gsm.dismissDeathScreen(),
       })
     );
   }
@@ -170,8 +183,13 @@ export async function startGame(playerData: Player[]) {
   gsm.onCameraIntro = (player) => gameCam.setIntroTarget(player);
   gsm.onCameraThirdPerson = (player) => {
     gameCam.setThirdPersonTarget(player);
-    gameCam.setGravityDown(gravity.getGravity(player.index).down, true); 
+    gameCam.setGravityDown(gravity.getGravity(player.index).down, true);
     canvas.requestPointerLock();
+  };
+  gsm.onWinner = (player) => {
+    if (player) gameCam.setWinnerTarget(player);
+    confetti.start(player ? player.color : null);
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
   };
 
   renderUI();
@@ -196,7 +214,7 @@ export async function startGame(playerData: Player[]) {
       })
       .with(vertexLayout, cubeBuffer)
       .with(cubeBindGroup)
-      .draw(36, cubeCount);
+      .draw(36, mapCtl.count);
   }
 
 
@@ -210,6 +228,15 @@ export async function startGame(playerData: Player[]) {
     const canMove = state.phase === "playing" && document.pointerLockElement === canvas;
     
     gameCam.tick(dt);
+
+    if (state.phase === "winner") {
+      confetti.update(dt);
+      drawCubes();
+      slime.draw(msaaTexture, depthTexture, context);
+      confetti.draw(msaaTexture, depthTexture, context);
+      requestAnimationFrame(frame);
+      return;
+    }
 
     const newPositions = physics.update(
       dt,
@@ -279,8 +306,10 @@ export async function startGame(playerData: Player[]) {
       slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number]);
     }
 
+    const skipIndex = gameCam.getMode() === "first-person" ? state.currentPlayerIndex : -1;
+
     drawCubes();
-    slime.draw(msaaTexture, depthTexture, context);
+    slime.draw(msaaTexture, depthTexture, context, skipIndex);
 
     requestAnimationFrame(frame);
   }
