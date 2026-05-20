@@ -56,6 +56,7 @@ export interface GameState {
     killLog: KillLogEntry[];
     deathScreenEntry: KillLogEntry | null;
     deathScreenTimeLeft: number;
+    winnerIndex: number | null;
 }
 
 export const turnDuration = 50;
@@ -158,6 +159,7 @@ export function createInitGameState (
         killLog: [],
         deathScreenEntry: null,
         deathScreenTimeLeft: 0,
+        winnerIndex: null,
     }
 }
 
@@ -166,6 +168,7 @@ export class GameStateMachine {
     state: GameState;
     onCameraIntro?: (player: PlayerState) => void;
     onCameraThirdPerson?: (player: PlayerState) => void;
+    onWinner?: (player: PlayerState | null) => void;
     onTurnEnd?: () => void;
     onStateChanged?: (state: GameState) => void;
 
@@ -257,6 +260,18 @@ export class GameStateMachine {
         };
 
         this.state.killLog = [...this.state.killLog, entry];
+
+        const alive = this.state.players.filter((p) => p.alive);
+        if (alive.length <= 1) {
+            this.clearTimers();
+            this.state.phase = "winner";
+            this.state.winnerIndex = alive.length === 1 ? alive[0].index : null;
+            this.state.inventoryOpen = false;
+            this.state.deathScreenEntry = null;
+            this.emit();
+            this.onWinner?.(alive[0] ?? null);
+            return;
+        }
 
         if (duringOwnTurn) {
             this.clearTimers();
