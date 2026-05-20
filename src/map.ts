@@ -64,48 +64,72 @@ for(let i=0; i<arenaLayers; i++){
     addPlates(origin, size);
 }
 
-const explX =0;
-const explY =-10;
-const explZ=0;
-const explRadius = 6;
 
-const explArray = instanceArray.filter(({ model }) => {
-    const tx = model[12];
-    const ty = model[13];
-    const tz = model[14];
-
-    const dx = tx-explX;
-    const dy = ty-explY;
-    const dz = tz-explZ;
-
-    const dist = dx*dx + dy*dy + dz*dz +1;
-
-    return dist > explRadius * explRadius;
-});
-
-export const cubeCount = explArray.length;
+export const initialCubeCount = instanceArray.length;
 
 export function checkPosition(cubeIndex: number){
     let instance = instanceArray[cubeIndex];
     console.log(instance);
 }
 
-export function createPlateBuffer(root: any){
-    return root
-    .createBuffer(d.arrayOf(cubeInstance, cubeCount), explArray)
-    .$usage("storage");
+let activeBlocks = new Set<string>();
+
+function rebuildActiveBlocks(list: d.InferInput<typeof cubeInstance>[]) {
+    activeBlocks = new Set<string>();
+    for (const inst of list) {
+        const tx = Math.round(inst.model[12]);
+        const ty = Math.round(inst.model[13]);
+        const tz = Math.round(inst.model[14]);
+        activeBlocks.add(`${tx},${ty},${tz}`);
+    }
 }
 
-const activeBlocks = new Set<string>();
-
-for (const inst of explArray) {
-    const tx = Math.round(inst.model[12]);
-    const ty = Math.round(inst.model[13]);
-    const tz = Math.round(inst.model[14]);
-    activeBlocks.add(`${tx},${ty},${tz}`);
-}
+rebuildActiveBlocks(instanceArray);
 
 export function isSolidBlock(x: number, y: number, z: number): boolean {
     return activeBlocks.has(`${Math.round(x)},${Math.round(y)},${Math.round(z)}`);
+}
+
+const farFiller: d.InferInput<typeof cubeInstance> = {
+    model: m.mat4.translation([1e7, 1e7, 1e7], d.mat4x4f()),
+};
+
+export interface MapController {
+    readonly buffer: any;
+    readonly count: number;
+    destroySphere(cx: number, cy: number, cz: number, radius: number): void;
+}
+
+export function createMapController(root: any): MapController {
+    let live = instanceArray.slice();
+    const capacity = instanceArray.length;
+
+    function padded(list: d.InferInput<typeof cubeInstance>[]) {
+        if (list.length === capacity) return list;
+        const out = list.slice();
+        while (out.length < capacity) out.push(farFiller);
+        return out;
+    }
+
+    const buffer = root
+        .createBuffer(d.arrayOf(cubeInstance, capacity), padded(live))
+        .$usage("storage");
+
+    return {
+        get buffer() { return buffer; },
+        get count() { return live.length; },
+
+        destroySphere(cx: number, cy: number, cz: number, radius: number) {
+            const r2 = radius * radius;
+            live = live.filter(({ model }) => {
+                const dx = model[12] - cx;
+                const dy = model[13] - cy;
+                const dz = model[14] - cz;
+                return dx * dx + dy * dy + dz * dz + 1 > r2;
+            });
+            rebuildActiveBlocks(live);
+            buffer.write(padded(live));
+        },
+    };
 }
 
