@@ -364,8 +364,27 @@ export function createGameCamera(
 
       return m.vec3.create(r[0], r[1], r[2]);
     },
+
+    getAimDir(): m.Vec3 {
+      const g = camOffsetDir();
+      return m.vec3.normalize(m.vec3.create(-g[0], -g[1], -g[2]));
+    },
+
+    getUpDir(): m.Vec3 {
+      return m.vec3.create(baseUp[0], baseUp[1], baseUp[2]);
+    },
+
     getMode() {
       return mode;
+    },
+
+    setWeaponAim(on: boolean) {
+      if (mode !== "third-person" && mode !== "first-person") return;
+      const target = on ? "first-person" : "third-person";
+      if (mode !== target) {
+        mode = target;
+        updateView();
+      }
     },
   };
 }
