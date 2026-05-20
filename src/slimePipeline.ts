@@ -159,7 +159,14 @@ export async function createSlimePipeline(
   const materialCount = slime.paletteData.length / 4;
 
 
-  // console.log("palette:", Array.from(slime.paletteData));
+  function hexToRgb01(hex: string): [number, number, number] {
+    const h = hex.replace("#", "");
+    return [
+      parseInt(h.slice(0, 2), 16) / 255,
+      parseInt(h.slice(2, 4), 16) / 255,
+      parseInt(h.slice(4, 6), 16) / 255,
+    ];
+  }
 
   const palette = Array.from({ length: materialCount }, (_, i) =>
       d.vec4f(
@@ -307,11 +314,13 @@ export async function createSlimePipeline(
     },
 
     draw(
-      msaaTexture: any, 
-      depthTexture: any, 
-      context: any
+      msaaTexture: any,
+      depthTexture: any,
+      context: any,
+      skipIndex: number = -1
     ) {
       for(let i=0; i< players.length; i++){
+        if(i === skipIndex) continue;
         opaquePipeline
           .withColorAttachment({
             view:          msaaTexture,
