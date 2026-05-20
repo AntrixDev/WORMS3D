@@ -2,8 +2,17 @@ import { useEffect, useState } from "react";
 import type { GameState, PlayerState, Weapon, KillLogEntry } from "../gameState";
 import "./gameUI.css"
 import { turnDuration } from "../gameState"
+import Button from "./components/button"
 
-const primaryColor= "#96488A";
+let primaryColor = "#96488A";
+
+const MEDAL_COLORS = ["#FFD700", "#929292", "#CD7F32"];
+
+const causeDeath: Record<string, string> = {
+  void: "fell into the void",
+  weapon: "blown up",
+  unknown: "unknown",
+};
 
 const causeLabel: Record<string, string> = {
   void: "fell into the void",
@@ -145,7 +154,9 @@ function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOp
   );
 }
 
-function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLogEntry; timeLeft: number; totalTime: number; onDismiss: () => void; }) {
+function DeathScreen({ entry, timeLeft, totalTime, onDismiss, players }: { entry: KillLogEntry; timeLeft: number; totalTime: number; onDismiss: () => void; players: PlayerState[] }) {
+  const victimColor = players[entry.victimIndex]?.color ?? primaryColor;
+  const killerColor = entry.killerIndex !== null ? (players[entry.killerIndex]?.color ?? primaryColor) : primaryColor;
   useEffect(() => {
     const handler = () => onDismiss();
     window.addEventListener("click", handler);
@@ -158,7 +169,7 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
     <div className="death-overlay">
       <div className="death-card">
         <div className="death-title">eliminated</div>
-        <div className="death-username" style={{color: primaryColor, textShadow: `0 0 40px ${primaryColor}`}}>{entry.victimName}</div>
+        <div className="death-username" style={{color: victimColor, textShadow: `0 0 40px ${victimColor}`}}>{entry.victimName}</div>
 
         <div className="death-stats">
           <div className="death-stat-row">
@@ -172,7 +183,7 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
           {entry.killerName && (
             <div className="death-stat-row">
               <span className="death-stat-label">Killed by</span>
-              <span className="death-stat-value" style={{ color: primaryColor }}>
+              <span className="death-stat-value" style={{ color: killerColor }}>
                 {entry.killerName}
               </span>
             </div>
@@ -202,6 +213,39 @@ function DeathScreen({ entry, timeLeft, totalTime, onDismiss, }: { entry: KillLo
   );
 }
 
+function WinnerOverlay({
+  winner,
+  players,
+  killLog,
+  winnerIndex,
+  onBackToMenu,
+}: {
+  winner: PlayerState | null;
+  players: PlayerState[];
+  killLog: KillLogEntry[];
+  winnerIndex: number | null;
+  onBackToMenu: () => void;
+}) {
+  const accent = winner ? winner.color : primaryColor;
+  return (
+    <div className="winner-overlay">
+      <div className="winner-card">
+        <div className="winner-title">WINNER</div>
+        <div
+          className="winner-username"
+          style={{ color: accent, textShadow: `0 0 40px ${accent}` }}
+        >
+          {winner ? winner.username : "DRAW"}
+        </div>
+        <div className="winner-sub">{winner ? "last slime standing" : "no survivors"}</div>
+      </div>
+      <div className="winner-back-wrap">
+        <Button text="BACK TO LOBBY" action={onBackToMenu} />
+      </div>
+    </div>
+  );
+}
+
 const killFeedTTL = 5000;
 const animOutMs = 300;
 
@@ -212,7 +256,9 @@ interface FeedItem extends KillLogEntry {
 
 let feedIdCounter=0;
 
-function KillFeedEntry({ item }: { item: FeedItem }) {
+function KillFeedEntry({ item, players }: { item: FeedItem; players: PlayerState[] }) {
+  const victimColor = players[item.victimIndex]?.color ?? "#ffffff";
+  const killerColor = item.killerIndex !== null ? (players[item.killerIndex]?.color ?? "#ffffff") : "#ffffff";
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
@@ -224,16 +270,16 @@ function KillFeedEntry({ item }: { item: FeedItem }) {
   }, [item.expiresAt]);
 
   return (
-    <div className={`killfeed-entry ${isExiting ? "killfeed-animate-out" : "killfeed-animate-in"}`} style={{borderLeft: `3px solid ${primaryColor}`}}>
+    <div className={`killfeed-entry ${isExiting ? "killfeed-animate-out" : "killfeed-animate-in"}`} style={{borderLeft: `3px solid ${victimColor}`}}>
       <span className="killfeed-cause-icon">{causeIcon[item.cause] ?? "☠️"}</span>
       <span>
-        <span style={{color: primaryColor}}>{item.victimName}</span>
+        <span style={{color: victimColor, fontWeight: 800}}>{item.victimName}</span>
         {" "}
         {causeLabel[item.cause] ?? "died"}
         {item.killerName && (
           <>
             {" "}· killed by{" "}
-            <span className="killfeed-killer">{item.killerName}</span>
+            <span className="killfeed-killer" style={{color: killerColor, fontWeight: 800}}>{item.killerName}</span>
           </>
         )}
       </span>
@@ -241,7 +287,7 @@ function KillFeedEntry({ item }: { item: FeedItem }) {
   );
 }
 
-function KillFeed({ killLog }: { killLog: KillLogEntry[] }) {
+function KillFeed({ killLog, players }: { killLog: KillLogEntry[]; players: PlayerState[] }) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [seenCount, setSeenCount] = useState(0);
 
@@ -278,7 +324,7 @@ function KillFeed({ killLog }: { killLog: KillLogEntry[] }) {
   return (
     <div className="killfeed">
       {items.map((item) => (
-        <KillFeedEntry key={item.id} item={item} />
+        <KillFeedEntry key={item.id} item={item} players={players} />
       ))}
     </div>
   );
@@ -286,7 +332,7 @@ function KillFeed({ killLog }: { killLog: KillLogEntry[] }) {
 
 const deathScreenTotal = 10;
 
-export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory, onDismissDeathScreen }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; }) {
+export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory, onDismissDeathScreen, onBackToMenu }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; onBackToMenu: () => void; }) {
   const {
     phase,
     players,
@@ -299,9 +345,11 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
     killLog,
     deathScreenEntry,
     deathScreenTimeLeft,
+    winnerIndex,
   } = gameState;
 
   const currentPlayer = players[currentPlayerIndex];
+  primaryColor = currentPlayer?.color ?? "#96488A";
   const [showPlayerList, setShowPlayerList] = useState(false);
 
   useEffect(() => {
@@ -328,7 +376,7 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
   return (
     <div className="hud-container">
 
-      <KillFeed killLog={killLog} />
+      <KillFeed killLog={killLog} players={players} />
 
       {phase === "deathScreen" && deathScreenEntry && (
         <DeathScreen
@@ -336,6 +384,17 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
           timeLeft={deathScreenTimeLeft}
           totalTime={deathScreenTotal}
           onDismiss={onDismissDeathScreen}
+          players={players}
+        />
+      )}
+
+      {phase === "winner" && (
+        <WinnerOverlay
+          winner={winnerIndex !== null ? players[winnerIndex] : null}
+          players={players}
+          killLog={killLog}
+          winnerIndex={winnerIndex}
+          onBackToMenu={onBackToMenu}
         />
       )}
 
