@@ -190,6 +190,14 @@ export async function startGame(playerData: Player[]) {
           else canvas.requestPointerLock();
         },
         onDismissDeathScreen: () => gsm.dismissDeathScreen(),
+        onBackToMenu: () => {
+          const replay = gsm.state.players.map((p) => ({
+            username: p.username,
+            colorIndex: p.colorIndex,
+          }));
+          sessionStorage.setItem("replayPlayers", JSON.stringify(replay));
+          window.location.reload();
+        },
       })
     );
   }
