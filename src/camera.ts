@@ -9,6 +9,8 @@ export const Camera = d.struct({
   projection: d.mat4x4f,
 });
 
+export const FPeyeHeight = 0.45;
+
 interface ThirdPersonCamera {
   targetPos: Float32Array;
   yaw: number;
@@ -23,6 +25,7 @@ export function createGameCamera(
   canvas: HTMLCanvasElement,
   getInventoryOpen: () => boolean,
   onCanvasClickWhileInventoryOpen: () => void,
+  getAllowPointerLock: () => boolean = () => true,
 ) {
   const viewMat = d.mat4x4f();
   const projMat = d.mat4x4f();
@@ -41,7 +44,7 @@ export function createGameCamera(
     height: 1,
   };
 
-  let mode: "intro" | "third-person" = "intro";
+  let mode: "intro" | "third-person" | "first-person" = "intro";
   let introPos = new Float32Array([0, arenaFloorY, 0]);
 
   let baseRight = m.vec3.create(1, 0, 0);
@@ -95,19 +98,37 @@ export function createGameCamera(
     const cosT = Math.cos(currentAngle);
     const sinT = Math.sin(currentAngle);
 
-    baseUp    = rotateVector(transition.fromUp,    transition.axis, cosT, sinT);
-    baseFwd   = rotateVector(transition.fromFwd,   transition.axis, cosT, sinT);
+    baseUp = rotateVector(transition.fromUp, transition.axis, cosT, sinT);
+    baseFwd = rotateVector(transition.fromFwd, transition.axis, cosT, sinT);
     baseRight = rotateVector(transition.fromRight, transition.axis, cosT, sinT);
 
     if (raw >= 1) {
       transition.active = false;
     }
 
-    if (mode === "third-person") updateView();
+    if (mode !== "intro") updateView();
+  }
+
+  function camOffsetDir(): m.Vec3 {
+    const dirX = Math.sin(tpc.yaw) * Math.cos(tpc.pitch);
+    const dirY = Math.sin(tpc.pitch);
+    const dirZ = Math.cos(tpc.yaw) * Math.cos(tpc.pitch);
+    return m.vec3.create(
+      dirX * baseRight[0] + dirY * baseUp[0] + dirZ * baseFwd[0],
+      dirX * baseRight[1] + dirY * baseUp[1] + dirZ * baseFwd[1],
+      dirX * baseRight[2] + dirY * baseUp[2] + dirZ * baseFwd[2],
+    );
   }
 
   function updateView() {
-    if (mode === "third-person") {
+    if(mode === "first-person"){
+      const g = camOffsetDir();
+      const ex = tpc.targetPos[0] + baseUp[0] * FPeyeHeight;
+      const ey = tpc.targetPos[1] + baseUp[1] * FPeyeHeight;
+      const ez = tpc.targetPos[2] + baseUp[2] * FPeyeHeight;
+      m.mat4.lookAt([ex, ey, ez], [ex - g[0], ey - g[1], ez - g[2]], baseUp, viewMat);
+      cameraBuffer.patch({ view: viewMat });
+    }else if(mode === "third-person"){
       const targetLookAt: [number, number, number] = [
         tpc.targetPos[0] + baseUp[0] * tpc.height, 
         tpc.targetPos[1] + baseUp[1] * tpc.height, 
@@ -160,13 +181,13 @@ export function createGameCamera(
     tpc.yaw   -= e.movementX * 0.003;
     tpc.pitch += e.movementY * 0.003;
     tpc.pitch  = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, tpc.pitch));
-    if (mode === "third-person") updateView();
+    if (mode !== "intro") updateView();
   });
 
   window.addEventListener("wheel", (e) => {
     tpc.distance += e.deltaY * 0.01;
     tpc.distance = Math.max(1.5, Math.min(12, tpc.distance));
-    if (mode === "third-person") updateView();
+    if (mode !== "intro") updateView();
   }, { passive: true });
 
   window.addEventListener("resize", () => {
@@ -177,8 +198,8 @@ export function createGameCamera(
   canvas.addEventListener("click", () => {
     if (getInventoryOpen()) {
       onCanvasClickWhileInventoryOpen();
-      canvas.requestPointerLock();
-    } else {
+      if (getAllowPointerLock()) canvas.requestPointerLock();
+    } else if (getAllowPointerLock()) {
       canvas.requestPointerLock();
     }
   });
@@ -204,7 +225,7 @@ export function createGameCamera(
             if (cosine > 0) {
               baseUp = newUp;
               transition.active = false;
-              if (mode === "third-person") updateView();
+              if (mode !== "intro") updateView();
               return;
             } else {
               u = m.vec3.create(baseRight[0], baseRight[1], baseRight[2]);
@@ -218,7 +239,7 @@ export function createGameCamera(
           baseFwd   = rotateVector(baseFwd, u, cosT, sinT);
           baseRight = rotateVector(baseRight, u, cosT, sinT);
           transition.active = false;
-          if (mode === "third-person") updateView();
+          if (mode !== "intro") updateView();
           return;
         }
 
@@ -270,7 +291,7 @@ export function createGameCamera(
       tpc.targetPos[0] = x;
       tpc.targetPos[1] = y;
       tpc.targetPos[2] = z;
-      if (mode === "third-person") updateView();
+      if (mode !== "intro") updateView();
     },
     getYaw(): number {
       return tpc.yaw;
