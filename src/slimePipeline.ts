@@ -168,28 +168,31 @@ export async function createSlimePipeline(
     ];
   }
 
-  const palette = Array.from({ length: materialCount }, (_, i) =>
-      d.vec4f(
-        slime.paletteData[i * 4 + 0],
-        slime.paletteData[i * 4 + 1],
-        slime.paletteData[i * 4 + 2],
-        slime.paletteData[i * 4 + 3],
-      )
-    );
+  function tintedPalette(hex: string) {
+    const [pr, pg, pb] = hexToRgb01(hex);
+    const clamp = (v: number) => Math.max(0, Math.min(1, v));
+    return Array.from({ length: materialCount }, (_, i) => {
+      const r0 = slime.paletteData[i * 4 + 0];
+      const g0 = slime.paletteData[i * 4 + 1];
+      const b0 = slime.paletteData[i * 4 + 2];
+      const a0 = slime.paletteData[i * 4 + 3];
 
-// const customPalette = Array.from({ length: materialCount }, (_, i) => {
-//   if (i === 0) return d.vec4f(0.95, 0.2, 0.6, 1.0);
-//   return d.vec4f(
-//     slime.paletteData[i * 4 + 0],
-//     slime.paletteData[i * 4 + 1],
-//     slime.paletteData[i * 4 + 2],
-//     slime.paletteData[i * 4 + 3],
-//   );
-// });
+      const sat = Math.max(r0, g0, b0) - Math.min(r0, g0, b0);
+      if (sat < 0.12) {
+        return d.vec4f(r0, g0, b0, a0);
+      }
 
-  const paletteBuffer = root
-    .createBuffer(d.arrayOf(d.vec4f, materialCount), palette)
-    .$usage("storage");
+      const lum = 0.2126 * r0 + 0.7152 * g0 + 0.0722 * b0;
+      const shade = 0.4 + 0.95 * lum;
+      return d.vec4f(clamp(pr * shade), clamp(pg * shade), clamp(pb * shade), a0);
+    });
+  }
+
+  const playerPaletteBuffers = players.map((p) =>
+    root
+      .createBuffer(d.arrayOf(d.vec4f, materialCount), tintedPalette(p.color))
+      .$usage("storage"),
+  );
 
   const playerUniforms = players.map((p, i) => {
     const gd = gravityController.getGravity(i).down;
@@ -204,13 +207,13 @@ export async function createSlimePipeline(
     palette: { storage: d.arrayOf(d.vec4f) },
   });
 
-  const playerBindGroup = playerUniforms.map((ub =>
+  const playerBindGroup = playerUniforms.map((ub, i) =>
     root.createBindGroup(modelLayout, {
         camera: cameraBuffer,
         modelUniforms: ub,
-        palette: paletteBuffer,
+        palette: playerPaletteBuffers[i],
       })
-  ));
+  );
 
   const modelVertex = tgpu.vertexFn({
     in: {
