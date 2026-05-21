@@ -28,6 +28,7 @@ export interface Weapon {
     name: string;
     ammo: number;
     icon: string;
+    description?: string;
 }
 
 export type DeathCause = "void" | "weapon" | "unknown";
@@ -72,8 +73,8 @@ const nearHIGH = arenaWallMax + 0.3;
 void arenaFloorY;
 
 export const defWeapons: Weapon[] = [
-    {id: 1, name: "Rocket Launcher", ammo: 2, icon: "🚀"},
-    {id: 2, name: "Grenade", ammo: 1, icon: "💣"},
+    {id: 1, name: "Rocket Launcher", ammo: 2, icon: "🚀", description: "I wonder what can it doo.. launches a rocket obviously"},
+    {id: 2, name: "Bomb", ammo: 1, icon: "💣", description: "That's a throw and run bomb. Show them how much strength you got."},
 ];
 
 function randomSpawnCord(): number {
