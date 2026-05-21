@@ -352,7 +352,7 @@ function KillFeedEntry({ item, players }: { item: FeedItem; players: PlayerState
         {causeLabel[item.cause] ?? "died"}
         {item.killerName && (
           <>
-            {" "}· killed by{" "}
+            {" "}by{" "}
             <span className="killfeed-killer" style={{color: killerColor, fontWeight: 800}}>{item.killerName}</span>
           </>
         )}
