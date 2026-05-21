@@ -3,7 +3,7 @@ export interface SlimeColor {
   hex: string;
 }
 
-export const SLIME_COLORS: SlimeColor[] = [
+export const slimeColors: SlimeColor[] = [
   { name: "purple", hex: "#96488A" },
   { name: "pink", hex: "#E86AA6" },
   { name: "yellow", hex: "#F2C200" },
@@ -16,11 +16,11 @@ export const SLIME_COLORS: SlimeColor[] = [
   { name: "lime", hex: "#9CCC3C" },
 ];
 
-export const DEFAULT_COLOR_INDEX = 0;
+export const defaultColorIndex = 0;
 
 export function colorAt(index: number): SlimeColor {
-  const n = SLIME_COLORS.length;
-  return SLIME_COLORS[((index % n) + n) % n];
+  const n = slimeColors.length;
+  return slimeColors[((index % n) + n) % n];
 }
 
 export function hexToRgb(hex: string): [number, number, number] {
