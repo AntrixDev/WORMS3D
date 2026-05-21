@@ -65,6 +65,110 @@ for(let i=0; i<arenaLayers; i++){
 }
 
 
+function mulberry32(seed: number) {
+    let s = seed >>> 0;
+
+    return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t))^t;
+
+        return ((t^(t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+type Cell2D = [number, number];
+
+function makeRectangle(rng: () => number, maxDim: number): Cell2D[] {
+    const w = 3 + Math.floor(rng() * (maxDim - 2));
+    const h = 3 + Math.floor(rng() * (maxDim - 2));
+    const cells: Cell2D[] = [];
+    for(let u = 0; u < w; u++){
+        for(let v = 0; v < h; v++){
+            cells.push([u, v]);
+        }
+    }
+    return cells;
+}
+
+const wallCells = new Set<string>();
+
+for (const inst of instanceArray) {
+    const tx= Math.round(inst.model[12]);
+    const ty= Math.round(inst.model[13]);
+    const tz= Math.round(inst.model[14]);
+
+    wallCells.add(`${tx},${ty},${tz}`);
+}
+
+(function addPlatforms() {
+    const minCell = arenaWallMin;
+    const maxCell = arenaWallMax;
+    const perpMin = arenaWallMin + 1;
+    const perpMax = arenaWallMax - 1;
+
+    const platformCount = Math.max(3, Math.floor(arenaInnerSize / 3));
+    const maxPlatformDim = Math.max(4, Math.floor(arenaInnerSize / 2.5));
+
+    const rng = mulberry32(0x5772d1e);
+    const maxAttempts = platformCount * 40;
+
+    const emitted = new Set<string>();
+
+    let placed = 0;
+    for (let attempt = 0; attempt < maxAttempts && placed < platformCount; attempt++) {
+        const localCells = makeRectangle(rng, maxPlatformDim);
+
+        const orientRoll = rng();
+        const orient = orientRoll < 0.55 ? 0 : (orientRoll < 0.775 ? 1 : 2);
+
+        let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+        for (const [u, v] of localCells) {
+            if (u < minU) minU = u; if (u > maxU) maxU = u;
+            if (v < minV) minV = v; if (v > maxV) maxV = v;
+        }
+        const w = maxU - minU + 1;
+        const h = maxV - minV + 1;
+
+        const uRange = maxCell - minCell - w + 2;
+        const vRange = maxCell - minCell - h + 2;
+        if (uRange <= 0 || vRange <= 0) continue;
+        const baseU = minCell + Math.floor(rng() * uRange);
+        const baseV = minCell + Math.floor(rng() * vRange);
+        const perp = perpMin + Math.floor(rng() * (perpMax - perpMin + 1));
+
+        const worldCells: Array<[number, number, number]> = [];
+        for (const [u, v] of localCells) {
+            const lu = u - minU;
+            const lv = v - minV;
+            let x: number, y: number, z: number;
+            if (orient === 0)      { x = baseU + lu; y = perp;       z = baseV + lv; }
+            else if (orient === 1) { x = perp;       y = baseU + lu; z = baseV + lv; }
+            else                   { x = baseU + lu; y = baseV + lv; z = perp;       }
+            worldCells.push([x, y, z]);
+        }
+
+        let canPlace = true;
+        for (const [x, y, z] of worldCells) {
+            if (x < minCell || x > maxCell ||
+                y < minCell || y > maxCell ||
+                z < minCell || z > maxCell) { canPlace = false; break; }
+            if (wallCells.has(`${x},${y},${z}`)) { canPlace = false; break; }
+        }
+        if (!canPlace) continue;
+
+        for (const [x, y, z] of worldCells) {
+            const key = `${x},${y},${z}`;
+            if (emitted.has(key)) continue;
+            emitted.add(key);
+            instanceArray.push({
+                model: m.mat4.translation([x, y, z], d.mat4x4f()),
+            });
+        }
+        placed++;
+    }
+})();
+
 export const initialCubeCount = instanceArray.length;
 
 export function checkPosition(cubeIndex: number){
