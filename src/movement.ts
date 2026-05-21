@@ -75,9 +75,9 @@ interface PhysicsBody {
 
 const jumpVel = 10;
 const moveAcc = 60;
-const friction = 10;       
-const blastFriction = 0.7; 
-const blastCooldown = 1.2; 
+const friction = 10;
+const blastFriction = 0.7;
+const blastCooldown = 1.2;
 const playerRadius = 0.4;
 export const fallReset = (arenaInnerSize + arenaLayers-1 * 2)*4;
 
