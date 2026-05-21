@@ -7,6 +7,7 @@ import { getSceneSDF } from "./movement";
 export const Camera = d.struct({
   view: d.mat4x4f,
   projection: d.mat4x4f,
+  invViewProj: d.mat4x4f,
 });
 
 export const FPeyeHeight = 0.45;
@@ -32,9 +33,18 @@ export function createGameCamera(
 
   m.mat4.perspective(Math.PI / 3, canvas.clientWidth / canvas.clientHeight, 0.1, 500, projMat);
 
+  const invViewProjMat = m.mat4.identity(d.mat4x4f());
+  const viewProjMat = d.mat4x4f();
+
   const cameraBuffer = root
-    .createBuffer(Camera, { view: viewMat, projection: projMat })
+    .createBuffer(Camera, { view: viewMat, projection: projMat, invViewProj: invViewProjMat })
     .$usage("uniform");
+
+  function patchCamera() {
+    m.mat4.mul(projMat, viewMat, viewProjMat);
+    m.mat4.inverse(viewProjMat, invViewProjMat);
+    cameraBuffer.patch({ view: viewMat, projection: projMat, invViewProj: invViewProjMat });
+  }
 
   const tpc: ThirdPersonCamera = {
     targetPos: new Float32Array([0, arenaFloorY, 0]),
@@ -46,6 +56,7 @@ export function createGameCamera(
 
   let mode: "intro" | "third-person" | "first-person" | "winner" = "intro";
   let introPos = new Float32Array([0, arenaFloorY, 0]);
+  let eyePos = new Float32Array([0, arenaFloorY, 0]);
 
   const winnerTarget = new Float32Array([0, arenaFloorY, 0]);
   let winnerAngle = 0;
@@ -133,7 +144,11 @@ export function createGameCamera(
       const ey = tpc.targetPos[1] + baseUp[1] * FPeyeHeight;
       const ez = tpc.targetPos[2] + baseUp[2] * FPeyeHeight;
       m.mat4.lookAt([ex, ey, ez], [ex - g[0], ey - g[1], ez - g[2]], baseUp, viewMat);
-      cameraBuffer.patch({ view: viewMat });
+      eyePos[0] = ex;
+      eyePos[1] = ey;
+      eyePos[2] = ez;
+
+      patchCamera();
     }else if(mode === "third-person"){
       const targetLookAt: [number, number, number] = [
         tpc.targetPos[0] + baseUp[0] * tpc.height, 
@@ -172,8 +187,11 @@ export function createGameCamera(
       const camZ = targetLookAt[2] + gz * actualDistance;
 
       m.mat4.lookAt([camX, camY, camZ], targetLookAt, baseUp, viewMat);
-      cameraBuffer.patch({ view: viewMat });
-      
+      eyePos[0] = camX;
+      eyePos[1]= camY;
+      eyePos[2] =camZ;
+      patchCamera();
+
     } else if(mode === "winner"){
       const cx = winnerTarget[0] + Math.cos(winnerAngle) * winnerRadius;
       const cy = winnerTarget[1] + winnerHeight;
@@ -185,12 +203,17 @@ export function createGameCamera(
         [0, 1, 0],
         viewMat,
       );
-
-      
-      cameraBuffer.patch({ view: viewMat });
+      eyePos[0] = cx;
+      eyePos[1] = cy;
+      eyePos[2]= cz;
+      patchCamera();
     } else if (mode === "intro") {
       m.mat4.lookAt(introPos, [0, arenaFloorY, 0], [0, 1, 0], viewMat);
-      cameraBuffer.patch({ view: viewMat });
+      eyePos[0] =introPos[0];
+      eyePos[1] = introPos[1];
+      eyePos[2] = introPos[2];
+
+      patchCamera();
     }
   }
 
@@ -212,7 +235,7 @@ export function createGameCamera(
 
   window.addEventListener("resize", () => {
     m.mat4.perspective(Math.PI / 3, canvas.clientWidth/canvas.clientHeight, 0.1, 500, projMat);
-    cameraBuffer.patch({ projection: projMat });
+    patchCamera();
   });
 
   canvas.addEventListener("click", () => {
@@ -376,6 +399,10 @@ export function createGameCamera(
 
     getMode() {
       return mode;
+    },
+
+    getEyePos(): [number, number, number] {
+      return [eyePos[0], eyePos[1], eyePos[2]];
     },
 
     setWeaponAim(on: boolean) {
