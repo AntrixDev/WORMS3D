@@ -116,16 +116,20 @@ export async function startGame(playerData: Player[]) {
   const outlineCoverage = tgpu.fn([d.vec2f, d.vec4f, d.vec2f], d.f32)(
     (uv, flags, g) => {
       const FAR = d.f32(1e9);
-      const dU0 = std.select(FAR, uv.x / g.x,              flags.x > d.f32(0.5));
-      const dU1 = std.select(FAR, (d.f32(1) - uv.x) / g.x, flags.y > d.f32(0.5));
-      const dV0 = std.select(FAR, uv.y / g.y,              flags.z > d.f32(0.5));
-      const dV1 = std.select(FAR, (d.f32(1) - uv.y) / g.y, flags.w > d.f32(0.5));
+      const dU0 = std.select(FAR, uv.x,            flags.x > d.f32(0.5));
+      const dU1 = std.select(FAR, d.f32(1)- uv.x, flags.y > d.f32(0.5));
+      const dV0 = std.select(FAR, uv.y,            flags.z > d.f32(0.5));
+      const dV1 = std.select(FAR, d.f32(1) - uv.y, flags.w > d.f32(0.5));
       const mU = std.min(dU0, dU1);
       const mV = std.min(dV0, dV1);
       const dManh = std.min(mU, mV);
       const dCorner = std.length(d.vec2f(mU, mV));
       const dEdge = std.min(dManh, dCorner * d.f32(0.7));
-      return d.f32(1) - std.smoothstep(d.f32(1.6), d.f32(2.6), dEdge);
+
+      const px = std.max(std.max(g.x, g.y), d.f32(1e-6));
+      const width = std.min(d.f32(2) *px, d.f32(0.04));
+      const aa = std.min(px, d.f32(0.03));
+      return d.f32(1) - std.smoothstep(width, width + aa, dEdge);
     },
   );
 
