@@ -7,6 +7,7 @@ import { createSlimePipeline } from "./slimePipeline";
 import { createBackground } from "./background";
 import { createWeaponSystem } from "./weapons";
 import { createConfetti } from "./confetti";
+import { forEach } from "@loaders.gl/core";
 import { GameStateMachine } from "./gameState";
 import type { Weapon } from "./gameState";
 import { GameUI } from "./ui/gameUI";
@@ -68,8 +69,19 @@ export async function startGame(playerData: Player[]) {
   const gradMaxY = arenaInnerSize - (arenaInnerSize / 2) -0.5;
 
   const cubeVertex = tgpu.vertexFn({
-    in: { position: d.vec4f, faceNormal: d.vec3f, faceUv: d.vec2f, instanceIndex: d.builtin.instanceIndex },
-    out: {pos: d.builtin.position, worldPos: d.vec3f, faceNormal: d.vec3f, faceUv: d.vec2f, edgeFlags: d.vec4f },
+    in: {
+      position: d.vec4f,
+      faceNormal: d.vec3f,
+      faceUv: d.vec2f,
+      instanceIndex: d.builtin.instanceIndex,
+    },
+    out: {
+      pos: d.builtin.position,
+      worldPos: d.vec3f,
+      faceNormal: d.vec3f,
+      faceUv: d.vec2f,
+      edgeFlags: d.vec4f,
+    },
   })((input) => {
     
     const inst = cubeLayout.$.instance[input.instanceIndex];
@@ -352,7 +364,8 @@ export async function startGame(playerData: Player[]) {
       strengthFillEl.style.height = "0%";
       confetti.update(dt);
       drawCubes();
-      slime.draw(msaaTexture, depthTexture, context);
+      slime.drawOpaque(msaaTexture, depthTexture, context, -1);
+      slime.drawAlpha(msaaTexture, depthTexture, context, -1, gameCam.getEyePos());
       confetti.draw(msaaTexture, depthTexture, context);
       requestAnimationFrame(frame);
       return;
@@ -439,8 +452,9 @@ export async function startGame(playerData: Player[]) {
     const skipIndex = gameCam.getMode() === "first-person" ? state.currentPlayerIndex : -1;
 
     drawCubes();
-    slime.draw(msaaTexture, depthTexture, context, skipIndex);
+    slime.drawOpaque(msaaTexture, depthTexture, context, skipIndex);
     weapons.draw(msaaTexture, depthTexture, context);
+    slime.drawAlpha(msaaTexture, depthTexture, context, skipIndex, gameCam.getEyePos());
 
     requestAnimationFrame(frame);
   }
