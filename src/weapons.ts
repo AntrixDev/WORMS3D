@@ -24,12 +24,12 @@ const explRadius = 6;
 const outerRadius = 10;     
 const innerDamage = 40;
 const outerDamage = 10;
-const grenadeRadius = 0.25; 
+const bombRadius = 0.25; 
 const restitution = 0.55;     
 const heldDiameter = 0.45;
-const grenadeDiameter = 0.4;
+const bombDiameter = 0.4;
 const MAXinstances = 16;
-const MAXgrenades = 8;
+const MAXbombs = 8;
 
 const rocketSPEED = 40;
 const rocketRADIUS = 0.25;               
@@ -52,7 +52,7 @@ interface Rocket {
 
 type Vec3 = [number, number, number];
 
-interface Grenade {
+interface Bomb {
   pos: Vec3;
   vel: Vec3;
   gd: Vec3;
@@ -116,7 +116,7 @@ export async function createWeaponSystem(
 ) {
   const { gsm, camera, gravity, map, canvas, physics } = deps;
 
-  const model = await loadGLBModel("/assets/bomb.glb");
+  const model = await loadGLBModel("./public/assets/bomb.glb");
 
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
@@ -136,7 +136,7 @@ export async function createWeaponSystem(
   ];
   const maxExtent = Math.max(maxX - minX, maxY - minY, maxZ - minZ) || 1;
   const heldScale = heldDiameter / maxExtent;
-  const grenadeScale = grenadeDiameter / maxExtent;
+  const bombScale = bombDiameter / maxExtent;
 
   function buildMat(
     px: number, py: number, pz: number,
@@ -199,7 +199,7 @@ export async function createWeaponSystem(
   });
 
   const uniformPool = Array.from({ length: MAXinstances }, () =>
-    root.createBuffer(ModelUniforms, { model: buildMat(0, -9999, 0, grenadeScale) }).$usage("uniform"),
+    root.createBuffer(ModelUniforms, { model: buildMat(0, -9999, 0, bombScale) }).$usage("uniform"),
   );
   const bindPool = uniformPool.map((ub: any) =>
     root.createBindGroup(modelLayout, {
@@ -341,7 +341,7 @@ export async function createWeaponSystem(
 
   const rocketFarFiller = { model: m.mat4.translation([1e7, 1e7, 1e7], d.mat4x4f()) };
 
-  const grenades: Grenade[] = [];
+  const bombs: Bomb[] = [];
   const rockets: Rocket[] = [];
   let charging = false;
   let charge = 0;
@@ -408,23 +408,23 @@ export async function createWeaponSystem(
     gsm.notifyWeaponDetonated();
   }
 
-  function grenadeSelectedAndAimed(): boolean {
+  function bombSelectedAndAimed(): boolean {
     const s = gsm.state;
     return (
       s.phase === "playing" &&
       !s.inventoryOpen &&
-      s.selectedWeapon?.name === "Grenade"
+      s.selectedWeapon?.name === "Bomb"
     );
   }
 
   function canCharge(): boolean {
     const p = activePlayer();
     return (
-      grenadeSelectedAndAimed() &&
+      bombSelectedAndAimed() &&
       document.pointerLockElement === canvas &&
       !!p && p.alive &&
       !charging &&
-      grenades.length < MAXgrenades
+      bombs.length < MAXbombs
     );
   }
 
@@ -453,14 +453,14 @@ export async function createWeaponSystem(
     return MINspeed + charge * (MAXspeed - MINspeed);
   }
 
-  function throwGrenade() {
+  function throwBomb() {
     charging = false;
     const a = aimSetup();
     if (!a) { charge = 0; return; }
 
     const speed = chargedSpeed();
 
-    grenades.push({
+    bombs.push({
       pos: [a.spawn[0], a.spawn[1], a.spawn[2]],
       vel: [a.aim[0] * speed, a.aim[1] * speed, a.aim[2] * speed],
       gd: a.gd,
@@ -477,7 +477,7 @@ export async function createWeaponSystem(
   }
 
   function previewAscending(): { points: Vec3[]; camPos: Vec3 } | null {
-    if (!grenadeSelectedAndAimed()) return null;
+    if (!bombSelectedAndAimed()) return null;
     const p = activePlayer();
     if (!p) return null;
 
@@ -549,7 +549,7 @@ export async function createWeaponSystem(
       pos[1] += vel[1] * stepDt;
       pos[2] += vel[2] * stepDt;
 
-      if (getSceneSDF(pos[0], pos[1], pos[2]) < grenadeRadius) {
+      if (getSceneSDF(pos[0], pos[1], pos[2]) < bombRadius) {
         pts.push([pos[0], pos[1], pos[2]]);
         break;
       }
@@ -563,7 +563,7 @@ export async function createWeaponSystem(
     return { points: pts, camPos };
   }
 
-  function detonate(g: Grenade) {
+  function detonate(g: Bomb) {
     const [x, y, z] = g.pos;
     map.destroySphere(x, y, z, explRadius);
     gsm.applyExplosionDamage(
@@ -590,23 +590,23 @@ export async function createWeaponSystem(
 
   window.addEventListener("mouseup", (e) => {
     if (e.button !== 0) return;
-    if (charging) throwGrenade();
+    if (charging) throwBomb();
   });
 
   return {
     update(dt: number) {
       if (charging) {
-        if (!grenadeSelectedAndAimed() || document.pointerLockElement !== canvas) {
+        if (!bombSelectedAndAimed() || document.pointerLockElement !== canvas) {
           charging = false;
           charge = 0;
         } else {
           charge = Math.min(1, charge + dt / chargeTime);
-          if (charge >= 1) throwGrenade();
+          if (charge >= 1) throwBomb();
         }
       }
 
-      for (let i = grenades.length - 1; i >= 0; i--) {
-        const g = grenades[i];
+      for (let i = bombs.length - 1; i >= 0; i--) {
+        const g = bombs[i];
 
         g.vel[0] += g.gd[0] * g.mag * gravityScale * dt;
         g.vel[1] += g.gd[1] * g.mag * gravityScale * dt;
@@ -618,9 +618,9 @@ export async function createWeaponSystem(
 
         for (let iter = 0; iter < 2; iter++) {
           const dist = getSceneSDF(g.pos[0], g.pos[1], g.pos[2]);
-          if (dist < grenadeRadius) {
+          if (dist < bombRadius) {
             const [nx, ny, nz] = sdfNormal(g.pos[0], g.pos[1], g.pos[2]);
-            const pen = grenadeRadius - dist;
+            const pen = bombRadius - dist;
             g.pos[0] += nx * pen;
             g.pos[1] += ny * pen;
             g.pos[2] += nz * pen;
@@ -657,7 +657,7 @@ export async function createWeaponSystem(
         g.fuse -= dt;
         if (g.fuse <= 0) {
           detonate(g);
-          grenades.splice(i, 1);
+          bombs.splice(i, 1);
         }
       }
 
@@ -697,7 +697,7 @@ export async function createWeaponSystem(
         c0?: Vec3; c1?: Vec3; c2?: Vec3;
       }> = [];
 
-      if (grenadeSelectedAndAimed()) {
+      if (bombSelectedAndAimed()) {
         const p = activePlayer();
         if (p && p.alive) {
           const fwd = camera.getForwardDir();
@@ -712,9 +712,9 @@ export async function createWeaponSystem(
         }
       }
 
-      for (const g of grenades) {
+      for (const g of bombs) {
         instances.push({
-          x: g.pos[0], y: g.pos[1], z: g.pos[2], scale: grenadeScale,
+          x: g.pos[0], y: g.pos[1], z: g.pos[2], scale: bombScale,
           c0: g.c0, c1: g.c1, c2: g.c2,
         });
       }
