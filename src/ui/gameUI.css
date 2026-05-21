@@ -1,5 +1,6 @@
 :root {
   --glass-bg: rgba(255, 255, 255, 0.752);
+  --inv-bg: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(255, 255, 255, 0.15);
   --blur: blur(20px);
   --radius: 24px;
@@ -36,20 +37,48 @@
 }
 
 .intro-username {
-  font-size: 52px;
+  font-size: 68px;
   font-weight: 900;
+}
+
+.intro-catchphrase {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: rgba(0, 0, 0, 0.55);
+  margin-top: 8px;
 }
 
 .intro-num{
-  font-size: 52px;
+  font-size: 68px;
   font-weight: 900;
 }
 
-.turn{
+.intro-hint {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.45);
+  margin-top: 6px;
+  text-align: center;
+}
+
+.bottom-left-stack {
   position: absolute;
   bottom: 40px;
   left: 40px;
-  min-width: 10vw;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 40px;
+  width: 440px;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.turn{
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 25px;
@@ -59,6 +88,7 @@
   padding: 1em 2em;
   backdrop-filter: var(--blur);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.211);
+  pointer-events: auto;
 }
 
 .username {
@@ -96,86 +126,178 @@
 }
 
 .inventory-panel {
-  position: absolute;
-  right: 40px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: var(--glass-bg);
-  border: 2px solid var(--glass-border);
-  border-radius: var(--radius);
-  padding: 24px;
-  min-width: 280px;
-  pointer-events: all;
-  backdrop-filter: var(--blur);
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  z-index: 15;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.211);
+  pointer-events: auto;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.22));
 }
 
-.inventory-header {
+.inventory-tabs {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  padding-left: 22px;
+  gap: 4px;
 }
 
-.inventory-title {
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  color: black;
-}
-
-.inventory-close {
-  background: none;
+.inventory-tab {
+  font-family: inherit;
+  appearance: none;
   border: none;
-  font-size: 20px;
   cursor: pointer;
-  padding: 5px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  padding: 12px 32px 18px;
+  border-radius: 18px 18px 0 0;
+  margin-bottom: -10px;
+  transition: color 0.15s, background 0.15s;
 }
 
-.inventory-list {
+.inventory-tab:not(.active) {
+  background: rgba(0, 0, 0, 0.85);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.inventory-tab:not(.active):hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.inventory-tab.active {
+  background: var(--inv-bg);
+  color: black;
+  backdrop-filter: var(--blur);
+}
+
+.inventory-body {
+  background: var(--inv-bg);
+  backdrop-filter: var(--blur);
+  border-radius: 22px 22px 36px 36px;
+  padding: 20px;
+  position: relative;
+  overflow: visible;
+  min-height: 280px;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.inventory-empty {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: rgba(0, 0, 0, 0.35);
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.weapon-slot-wrap {
+  position: relative;
+  aspect-ratio: 1 / 1;
 }
 
 .weapon-slot {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.05);
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 14px;
-  padding: 12px 18px;
+  appearance: none;
+  font-family: inherit;
+  position: absolute;
+  inset: 0;
+  background: #000;
+  border: 2px solid transparent;
+  border-radius: 10px;
   cursor: pointer;
-  color: black;
-  transition: all 0.2s ease;
+  padding: 0;
+  overflow: visible;
+  transition:
+    top 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    right 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    border-radius 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.weapon-slot:hover {
-  background: rgba(0, 0, 0, 0.1);
-  transform: translateX(-5px);
+.weapon-slot--empty {
+  cursor: default;
+  pointer-events: none;
 }
 
-.weapon-icon {
-  font-size: 24px;
-  width: 30px;
+.weapon-slot--disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.weapon-slot--selected {
+  box-shadow: 0 0 0 2px currentColor inset;
+}
+
+.weapon-slot-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 44px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0));
+  transition:
+    top 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    font-size 0.2s ease,
+    filter 0.2s ease;
+}
+
+.weapon-slot-info {
+  position: absolute;
+  top: 40px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease 0.1s;
 }
 
-.weapon-name {
-  flex: 1;
-  font-weight: 700;
-  font-size: 15px;
-  text-align: left;
-}
-
-.weapon-ammo {
-  font-size: 14px;
+.weapon-slot-name {
+  font-size: 18px;
   font-weight: 900;
-  opacity: 0.6;
+  color: white;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+}
+
+.weapon-slot-desc {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.35;
+}
+
+.weapon-slot:hover:not(:disabled):not(.weapon-slot--empty) {
+  top: -190px;
+  right: -110px;
+  background: #1a1a1a;
+  border-radius: 22px 22px 22px 6px;
+  z-index: 30;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+}
+
+.weapon-slot:hover:not(:disabled):not(.weapon-slot--empty) .weapon-slot-icon {
+  top: 0;
+  font-size: 52px;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+}
+
+.weapon-slot:hover:not(:disabled):not(.weapon-slot--empty) .weapon-slot-info {
+  opacity: 1;
 }
 
 .weapon-hud {
@@ -529,8 +651,6 @@
   white-space: nowrap;
 }
 
-
-
 .leaderboard-cause {
   font-size: 12px;
   font-weight: 700;
@@ -541,7 +661,7 @@
   text-align: right;
 }
 
-.leaderboard-kills{
+.leaderboard-kills {
   font-size: 13px;
   font-weight: 900;
   color: rgba(0, 0, 0, 0.75);

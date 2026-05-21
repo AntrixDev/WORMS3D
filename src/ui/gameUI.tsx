@@ -111,27 +111,55 @@ function PlayerList({ players, currentPlayerIndex }: { players: PlayerState[]; c
 }
 
 
-function InventoryPanel({ inventory, selected, onSelect, onClose }: { inventory: Weapon[]; selected: Weapon | null; onSelect: (w: Weapon) => void; onClose: () => void }) {
+function InventoryPanel({ inventory, selected, weaponUsed, onSelect }: { inventory: Weapon[]; selected: Weapon | null; weaponUsed: boolean; onSelect: (w: Weapon) => void }){
+  const [activeTab, setActiveTab] = useState<"weapons" | "tools">("weapons");
+  const items = activeTab === "weapons" ? inventory : [];
+  const locked = selected !== null || weaponUsed;
+
   return (
     <div className="inventory-panel" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-      <div className="inventory-header">
-        <span className="inventory-title">WEAPONS</span>
-        <button className="inventory-close" onClick={onClose}>✕</button></div>
-      <div className="inventory-list">
-        {inventory.map((w) => (
-          <button
-            key={w.id}
-            className={`weapon-slot ${selected?.id === w.id ? 'selected' : ''}`}
-            onClick={() => onSelect(w)}
-            style={selected?.id === w.id ? { borderColor: primaryColor, backgroundColor: `${primaryColor}15` } : {}}
-          >
-            <span className="weapon-icon">{w.icon}</span>
-            <span className="weapon-name">{w.name}</span>
-            <span className="weapon-ammo">×{w.ammo}</span>
-          </button>
-        ))}
+      <div className="inventory-tabs">
+        <button
+          className={`inventory-tab ${activeTab === "weapons" ? "active" : ""}`}
+          onClick={() => setActiveTab("weapons")}
+        >WEAPONS</button>
+        <button
+          className={`inventory-tab ${activeTab === "tools" ? "active" : ""}`}
+          onClick={() => setActiveTab("tools")}
+        >TOOLS</button>
       </div>
-      <div className="inventory-hint">Press Q to close</div>
+
+      <div className="inventory-body">
+        {items.length ===0 ? (
+          <div className="inventory-empty">nothing here yet</div>
+        ) : (
+          <div className="inventory-grid">
+            {items.map((item) => {
+              const isSelected = selected?.id === item.id;
+              const disabled= locked && !isSelected;
+              return (
+                <div className="weapon-slot-wrap" key={item.id}>
+                  <button
+                    className={`weapon-slot ${isSelected ? "weapon-slot--selected" : ""} ${disabled ? "weapon-slot--disabled" : ""}`}
+                    onClick={() => { if (!disabled) onSelect(item); }}
+                    style={ isSelected ? { borderColor: primaryColor } : {}}
+                    disabled={disabled}
+                  >
+                    <span className="weapon-slot-icon">{item.icon}</span>
+                    <div className="weapon-slot-info">
+                      <div className="weapon-slot-name">{item.name}</div>
+                      {item.description && (
+                        <div className="weapon-slot-desc">{item.description}</div>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -147,7 +175,7 @@ function WeaponUI({ selected, onOpenInventory }: { selected: Weapon | null; onOp
             <span className="weapon-hud-ammo" style={{ color: primaryColor }}>×{selected.ammo}</span>
           </>
         ) : (
-          <span className="weapon-hud-empty">[ Q ] WEAPONS</span>
+          <span className="weapon-hud-empty">[ Q ] INVENTORY</span>
         )}
       </div>
     </div>
@@ -420,6 +448,7 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
     deathScreenEntry,
     deathScreenTimeLeft,
     winnerIndex,
+    weaponUsed,
   } = gameState;
 
   const currentPlayer = players[currentPlayerIndex];
@@ -478,12 +507,18 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
 
       {phase === "playing" && (
         <>
-          <TurnUI player={currentPlayer} turnTimeLeft={turnTimeLeft} />
-          {inventoryOpen ? (
-            <InventoryPanel inventory={inventory} selected={selectedWeapon} onSelect={onSelectWeapon} onClose={onToggleInventory} />
-          ) : (
-            <WeaponUI selected={selectedWeapon} onOpenInventory={onToggleInventory} />
-          )}
+          <div className="bottom-left-stack">
+            {inventoryOpen && (
+              <InventoryPanel
+                inventory={inventory}
+                selected={selectedWeapon}
+                weaponUsed={weaponUsed}
+                onSelect={onSelectWeapon}
+              />
+            )}
+            <TurnUI player={currentPlayer} turnTimeLeft={turnTimeLeft} />
+          </div>
+          <WeaponUI selected={selectedWeapon} onOpenInventory={onToggleInventory} />
         </>
       )}
       
