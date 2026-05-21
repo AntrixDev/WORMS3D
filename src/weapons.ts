@@ -7,8 +7,11 @@ import { getSceneSDF } from "./movement";
 import type { GameStateMachine } from "./gameState";
 import type { GravityController } from "./gravity";
 import type { MapController } from "./map";
-import { cubeInstance } from "./map";
 import type { createGameCamera } from "./camera";
+
+const rocketInstance = d.struct({
+  model: d.mat4x4f,
+});
 import type { PhysicsController } from "./movement";
 
 const chargeTime = 2;       
@@ -284,12 +287,12 @@ export async function createWeaponSystem(
     .$usage("vertex");
 
   const rocketInstanceBuffer = root
-    .createBuffer(d.arrayOf(cubeInstance, rocketMAXinstances))
+    .createBuffer(d.arrayOf(rocketInstance, rocketMAXinstances))
     .$usage("storage");
 
   const rocketLayout = tgpu.bindGroupLayout({
     camera: { uniform: Camera },
-    instance: { storage: d.arrayOf(cubeInstance) },
+    instance: { storage: d.arrayOf(rocketInstance) },
   });
 
   const rocketBindGroup = root.createBindGroup(rocketLayout, {
@@ -554,7 +557,7 @@ export async function createWeaponSystem(
       pts.push([pos[0], pos[1], pos[2]]);
 
       const vUp = vel[0] * worldUp[0] + vel[1] * worldUp[1] + vel[2] * worldUp[2];
-      if (vUp <= 0) break;          
+      if (vUp <= 0) break;
       if (pts.length >= maxPoints) break;
     }
     return { points: pts, camPos };
