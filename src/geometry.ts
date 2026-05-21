@@ -1,9 +1,10 @@
-import tgpu, { d} from "typegpu";
+import tgpu, { d } from "typegpu";
 import * as m from "wgpu-matrix";
 
 const Vertex = d.struct({
   position: d.vec4f,
-  color: d.vec4f,
+  faceNormal: d.vec3f,
+  faceUv: d.vec2f,
 });
 
 export const Transform = d.struct({
@@ -13,41 +14,43 @@ export const Transform = d.struct({
 export const vertexLayout = tgpu.vertexLayout(d.arrayOf(Vertex));
 
 function createFace(
-  vertices: number[][],
-  color: d.Infer<typeof Vertex>["color"]
+  positions: number[][],
+  normal: [number, number, number],
+  normalAxis: number,
 ): d.Infer<typeof Vertex>[] {
-  return vertices.map((pos) => ({
+  const others = [0, 1, 2].filter((i) => i !== normalAxis);
+  return positions.map((pos) => ({
     position: d.vec4f(...(pos as [number, number, number, number])),
-    color,
+    faceNormal: d.vec3f(normal[0], normal[1], normal[2]),
+    faceUv: d.vec2f(pos[others[0]] + 0.5, pos[others[1]] + 0.5),
   }));
 }
-
 
 function createCube(): d.Infer<typeof Vertex>[] {
   const front = createFace([
     [-0.5, -0.5,  0.5, 1], [0.5, -0.5,  0.5, 1], [0.5,  0.5,  0.5, 1],
     [-0.5, -0.5,  0.5, 1], [0.5,  0.5,  0.5, 1], [-0.5,  0.5,  0.5, 1],
-  ], d.vec4f(0.75, 0.40, 0.40, 1));
+  ], [0, 0, 1], 2);
   const back = createFace([
     [-0.5, -0.5, -0.5, 1], [-0.5,  0.5, -0.5, 1], [0.5, -0.5, -0.5, 1],
     [ 0.5, -0.5, -0.5, 1], [-0.5,  0.5, -0.5, 1], [0.5,  0.5, -0.5, 1],
-  ], d.vec4f(0.47, 0.65, 0.47, 1));
+  ], [0, 0, -1], 2);
   const top = createFace([
     [-0.5, 0.5, -0.5, 1], [-0.5, 0.5,  0.5, 1], [0.5, 0.5, -0.5, 1],
     [ 0.5, 0.5, -0.5, 1], [-0.5, 0.5,  0.5, 1], [0.5, 0.5,  0.5, 1],
-  ], d.vec4f(0.40, 0.55, 0.75, 1));
+  ], [0, 1, 0], 1);
   const bottom = createFace([
     [-0.5, -0.5, -0.5, 1], [ 0.5, -0.5, -0.5, 1], [-0.5, -0.5,  0.5, 1],
     [ 0.5, -0.5, -0.5, 1], [ 0.5, -0.5,  0.5, 1], [-0.5, -0.5,  0.5, 1],
-  ], d.vec4f(0.85, 0.75, 0.40, 1));
+  ], [0, -1, 0], 1);
   const right = createFace([
     [0.5, -0.5, -0.5, 1], [0.5,  0.5, -0.5, 1], [0.5, -0.5,  0.5, 1],
     [0.5, -0.5,  0.5, 1], [0.5,  0.5, -0.5, 1], [0.5,  0.5,  0.5, 1],
-  ], d.vec4f(0.60, 0.50, 0.70, 1));
+  ], [1, 0, 0], 0);
   const left = createFace([
     [-0.5, -0.5, -0.5, 1], [-0.5, -0.5,  0.5, 1], [-0.5,  0.5, -0.5, 1],
     [-0.5, -0.5,  0.5, 1], [-0.5,  0.5,  0.5, 1], [-0.5,  0.5, -0.5, 1],
-  ], d.vec4f(0.85, 0.55, 0.40, 1));
+  ], [-1, 0, 0], 0);
   return [...front, ...back, ...top, ...bottom, ...right, ...left];
 }
 
