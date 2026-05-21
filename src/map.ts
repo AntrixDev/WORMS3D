@@ -3,6 +3,7 @@ import * as m from "wgpu-matrix";
 
 export const cubeInstance = d.struct({
     model: d.mat4x4f,
+    outlineMask: d.u32,
 });
 
 const instanceArray: d.InferInput<typeof cubeInstance>[]=[];
@@ -14,27 +15,33 @@ function addPlates(origin: number, plateSize: number){
         for(let b=0; b<plateSize; b++){
             instanceArray.push({
                 model: m.mat4.translation([origin+a, origin, origin+b], d.mat4x4f()),
+                outlineMask: 0,
             });
 
             instanceArray.push({
                 model: m.mat4.translation([origin+a, origin+max, origin+b], d.mat4x4f()),
+                outlineMask: 0,
             });
 
             if(b>0 && b<max){
                 instanceArray.push({
                     model: m.mat4.translation([origin, origin+b, origin+a], d.mat4x4f()),
+                    outlineMask: 0,
                 });
 
                 instanceArray.push({
                     model: m.mat4.translation([origin+max, origin+b, origin+a], d.mat4x4f()),
+                    outlineMask: 0,
                 });
                 if(a>0 && a<max){
                     instanceArray.push({
                         model: m.mat4.translation([origin+a, origin+b, origin], d.mat4x4f()),
+                        outlineMask: 0,
                     });
 
                     instanceArray.push({
                         model: m.mat4.translation([origin+a, origin+b, origin+max], d.mat4x4f()),
+                        outlineMask: 0,
                     });
                 }
 
@@ -162,6 +169,7 @@ for (const inst of instanceArray) {
             if (emitted.has(key)) continue;
             emitted.add(key);
             instanceArray.push({
+                outlineMask: 0,
                 model: m.mat4.translation([x, y, z], d.mat4x4f()),
             });
         }
@@ -196,7 +204,67 @@ export function isSolidBlock(x: number, y: number, z: number): boolean {
 
 const farFiller: d.InferInput<typeof cubeInstance> = {
     model: m.mat4.translation([1e7, 1e7, 1e7], d.mat4x4f()),
+    outlineMask: 0,
 };
+
+const faceDirs: Array<[number, number, number]> = [
+    [ 1, 0, 0], [-1, 0, 0],
+    [ 0, 1, 0], [ 0,-1, 0],
+    [ 0, 0, 1], [ 0, 0,-1],
+];
+
+
+const faceEdgeDirs: Array<Array<[number, number, number]>> = faceDirs.map((F) => {
+    const ax = Math.abs(F[0]), ay = Math.abs(F[1]);
+    let uAxis: [number, number, number], vAxis: [number, number, number];
+    if(ax > 0.5){
+        uAxis = [0,1,0];
+        vAxis = [0,0,1];
+    }else if(ay > 0.5){
+        uAxis = [1,0,0];
+        vAxis = [0,0,1];
+    }else{
+        uAxis = [1,0,0];
+        vAxis = [0,1,0];
+    }
+
+    return [
+        [-uAxis[0], -uAxis[1], -uAxis[2]],
+        [ uAxis[0],  uAxis[1],  uAxis[2]],
+        [-vAxis[0], -vAxis[1],  -vAxis[2]],
+        [ vAxis[0],  vAxis[1],  vAxis[2]],
+    ];
+});
+
+function computeOutlineMask(x: number, y: number, z: number): number {
+    let mask = 0;
+    for (let f = 0; f < 6; f++) {
+        const F = faceDirs[f];
+        const edges = faceEdgeDirs[f];
+        for (let e = 0; e < 4; e++) {
+            const D = edges[e];
+            const directKey = `${x + D[0]},${y + D[1]},${z + D[2]}`;
+            const diagKey   = `${x + D[0] + F[0]},${y + D[1] + F[1]},${z + D[2] + F[2]}`;
+            const directExists = activeBlocks.has(directKey);
+            const diagExists   = activeBlocks.has(diagKey);
+            if (!directExists || diagExists) {
+                mask |= 1 << (f * 4 + e);
+            }
+        }
+    }
+    return mask >>> 0;
+}
+
+function refreshOutlines(list: d.InferInput<typeof cubeInstance>[]) {
+    for (const inst of list) {
+        const tx = Math.round(inst.model[12]);
+        const ty = Math.round(inst.model[13]);
+        const tz = Math.round(inst.model[14]);
+        inst.outlineMask = computeOutlineMask(tx, ty, tz);
+    }
+}
+
+refreshOutlines(instanceArray);
 
 export interface MapController {
     readonly buffer: any;
@@ -232,6 +300,7 @@ export function createMapController(root: any): MapController {
                 return dx * dx + dy * dy + dz * dz + 1 > r2;
             });
             rebuildActiveBlocks(live);
+            refreshOutlines(live);
             buffer.write(padded(live));
         },
     };
