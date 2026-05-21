@@ -142,6 +142,10 @@ export async function createSlimePipeline(
     slime.alphaFlags,
   );
 
+  const opaqueIndexBuffer = root
+    .createBuffer(d.arrayOf(d.u32, opaqueIndices.length), Array.from(opaqueIndices))
+    .$usage("index");
+
   const alphaIndexBuffer = opaqueIndices.length > 0 && alphaIndices.length > 0
     ? root
         .createBuffer(d.arrayOf(d.u32, alphaIndices.length), Array.from(alphaIndices))
@@ -239,14 +243,14 @@ export async function createSlimePipeline(
   })((i) => i.color);
 
   const opaquePipeline = root.createRenderPipeline({
-    attribs:  { ...modelVertexLayout.attrib },
-    vertex:   modelVertex,
+    attribs: { ...modelVertexLayout.attrib },
+    vertex: modelVertex,
     fragment: modelFragment,
-    targets:  { format: presentationFormat },
+    targets: {format: presentationFormat },
     depthStencil: {
-      format:            "depth24plus",
+      format: "depth24plus",
       depthWriteEnabled: true,
-      depthCompare:      "less",
+      depthCompare: "less",
     },
     multisample: { count: 4 },
   });
@@ -294,14 +298,15 @@ export async function createSlimePipeline(
       playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, worldFwd, groundOffset, scaleFactor, gravDown) });
     },
 
-    draw(
+    drawOpaque(
       msaaTexture: any,
       depthTexture: any,
       context: any,
-      skipIndex: number = -1
+      skipIndex: number = -1,
     ) {
       for(let i=0; i< players.length; i++){
         if(i === skipIndex) continue;
+        if(opaqueIndices.length === 0) break;
         opaquePipeline
           .withColorAttachment({
             view:          msaaTexture,
@@ -316,28 +321,52 @@ export async function createSlimePipeline(
           })
           .with(modelVertexLayout, modelVertexBuffer)
           .with(playerBindGroup[i])
-          .withIndexBuffer(modelIndexBuffer)
+          .withIndexBuffer(opaqueIndexBuffer)
           .drawIndexed(opaqueIndices.length);
+      }
+    },
 
-          if (alphaPipeline && alphaIndexBuffer) {
-          alphaPipeline
-            .withColorAttachment({
-              view:          msaaTexture,
-              resolveTarget: context,
-              loadOp:        "load",
-            })
-            .withDepthStencilAttachment({
-              view:            depthTexture,
-              depthClearValue: 1,
-              depthLoadOp:     "load",
-              depthStoreOp:    "store",
-            })
-            .with(modelVertexLayout, modelVertexBuffer)
-            .with(playerBindGroup[i])
-            .withIndexBuffer(alphaIndexBuffer)
-            .drawIndexed(alphaIndices.length);
-        }
+    drawAlpha(
+      msaaTexture: any,
+      depthTexture: any,
+      context: any,
+      skipIndex: number = -1,
+      camPos: [number, number, number] = [0, 0, 0],
+    ) {
+      if (!alphaPipeline || !alphaIndexBuffer) return;
+
+      const order: number[] = [];
+      for (let i = 0; i < players.length; i++) {
+        if (i === skipIndex) continue;
+        order.push(i);
+      }
+      order.sort((a, b) => {
+        const pa = players[a];
+        const pb = players[b];
+        const da= (pa.posX - camPos[0]) ** 2 + (pa.posY - camPos[1])** 2 + (pa.posZ - camPos[2]) ** 2;
+        const db = (pb.posX - camPos[0]) ** 2 + (pb.posY-camPos[1]) ** 2 + (pb.posZ - camPos[2]) ** 2;
+        return db - da;
+      });
+
+      for (const i of order) {
+        alphaPipeline
+          .withColorAttachment({
+            view: msaaTexture,
+            resolveTarget: context,
+            loadOp: "load",
+          })
+          .withDepthStencilAttachment({
+            view: depthTexture,
+            depthClearValue: 1,
+            depthLoadOp: "load",
+            depthStoreOp:"store",
+          })
+          .with(modelVertexLayout, modelVertexBuffer)
+          .with(playerBindGroup[i])
+          .withIndexBuffer(alphaIndexBuffer)
+          .drawIndexed(alphaIndices.length);
       }
     },
   };
+  
 }
