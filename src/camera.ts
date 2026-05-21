@@ -59,6 +59,7 @@ export function createGameCamera(
   let eyePos = new Float32Array([0, arenaFloorY, 0]);
 
   const winnerTarget = new Float32Array([0, arenaFloorY, 0]);
+  const winnerUp = new Float32Array([0, 1, 0]);
   let winnerAngle = 0;
   const winnerRadius = 5;
   const winnerHeight = 2.2;
@@ -193,14 +194,30 @@ export function createGameCamera(
       patchCamera();
 
     } else if(mode === "winner"){
-      const cx = winnerTarget[0] + Math.cos(winnerAngle) * winnerRadius;
-      const cy = winnerTarget[1] + winnerHeight;
-      const cz = winnerTarget[2] + Math.sin(winnerAngle) * winnerRadius;
+      const up = winnerUp;
+      let ref = m.vec3.create(0, 0, 1);
+      
+      if (Math.abs(up[0] * ref[0] + up[1] * ref[1]+up[2] * ref[2]) > 0.99) {
+        ref = m.vec3.create(1, 0, 0);
+      }
+      const orbitX = m.vec3.normalize(m.vec3.cross(up, ref));
+      const orbitZ = m.vec3.cross(orbitX, up);
+
+      const c = Math.cos(winnerAngle);
+      const s= Math.sin(winnerAngle);
+
+      const cx = winnerTarget[0] +up[0] * winnerHeight + (c * orbitX[0] + s * orbitZ[0]) * winnerRadius;
+      const cy = winnerTarget[1] + up[1] * winnerHeight + (c * orbitX[1] +s * orbitZ[1]) * winnerRadius;
+      const cz = winnerTarget[2] + up[2] * winnerHeight + (c * orbitX[2] + s * orbitZ[2]) * winnerRadius;
 
       m.mat4.lookAt(
         [cx, cy, cz],
-        [winnerTarget[0], winnerTarget[1] + 0.6, winnerTarget[2]],
-        [0, 1, 0],
+        [
+          winnerTarget[0] + up[0] * 0.6,
+          winnerTarget[1] + up[1] * 0.6,
+          winnerTarget[2] + up[2] * 0.6,
+        ],
+        up,
         viewMat,
       );
       eyePos[0] = cx;
@@ -342,10 +359,19 @@ export function createGameCamera(
     getPitch(): number {
       return tpc.pitch;
     },
-    setWinnerTarget(player: PlayerState) {
+    setWinnerTarget(player: PlayerState, gravityDown?: m.Vec3 | number[]) {
       winnerTarget[0] = player.posX;
       winnerTarget[1] = player.posY;
       winnerTarget[2] = player.posZ;
+      if (gravityDown) {
+        winnerUp[0] = -gravityDown[0];
+        winnerUp[1] = -gravityDown[1];
+        winnerUp[2] = -gravityDown[2];
+      } else {
+        winnerUp[0] = 0;
+        winnerUp[1] = 1;
+        winnerUp[2] = 0;
+      }
       winnerAngle = 0;
       mode = "winner";
       updateView();

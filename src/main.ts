@@ -316,7 +316,7 @@ export async function startGame(playerData: Player[]) {
     canvas.requestPointerLock();
   };
   gsm.onWinner = (player) => {
-    if (player) gameCam.setWinnerTarget(player);
+    if(player) gameCam.setWinnerTarget(player, gravity.getGravity(player.index).down);
     confetti.start(player ? player.color : null);
     if (document.pointerLockElement === canvas) document.exitPointerLock();
   };
