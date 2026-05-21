@@ -147,9 +147,9 @@
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.18em;
-  padding: 12px 32px 18px;
+  padding: 12px 32px 10px;
   border-radius: 18px 18px 0 0;
-  margin-bottom: -10px;
+  margin-bottom: 0px;
   transition: color 0.15s, background 0.15s;
 }
 
