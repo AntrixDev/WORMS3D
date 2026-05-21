@@ -4,6 +4,7 @@ import { Camera, createGameCamera } from "./camera";
 import { vertexLayout, createCubeBuffer} from "./geometry";
 import { cubeInstance, createMapController } from "./map";
 import { createSlimePipeline } from "./slimePipeline";
+import { createBackground } from "./background";
 import { createWeaponSystem } from "./weapons";
 import { createConfetti } from "./confetti";
 import { forEach } from "@loaders.gl/core";
@@ -93,6 +94,8 @@ export async function startGame(playerData: Player[]) {
     },
     multisample: { count: 4 },
   });
+
+  const background = createBackground(root, cameraBuffer, presentationFormat);
 
   function makeTextures() {
     return {
@@ -222,17 +225,17 @@ export async function startGame(playerData: Player[]) {
   const tempProjectionVec = m.vec3.create();
 
   function drawCubes() {
+    background.draw(msaaTexture, depthTexture, context);
     cubePipeline
       .withColorAttachment({
         view: msaaTexture,
         resolveTarget: context,
-        loadOp: "clear",
-        clearValue: [0.1, 0.1, 0.15, 1],
+        loadOp: "load",
       })
       .withDepthStencilAttachment({
         view: depthTexture,
         depthClearValue: 1,
-        depthLoadOp: "clear",
+        depthLoadOp: "load",
         depthStoreOp: "store",
       })
       .with(vertexLayout, cubeBuffer)

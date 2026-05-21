@@ -51,3 +51,62 @@ const skyFragment = tgpu.fragmentFn({
 
   return d.vec4f(color, d.f32(1));
 });
+
+export interface Background {
+  draw(msaaTexture: any, depthTexture: any, context: any): void;
+}
+
+export function createBackground(
+  root: any,
+  cameraBuffer: any,
+  presentationFormat: GPUTextureFormat,
+): Background {
+  const skyBuffer = root
+    .createBuffer(skyVertexLayout.schemaForCount(6), [
+      { position: d.vec2f(-1, -1) },
+      { position: d.vec2f( 1, -1) },
+      { position: d.vec2f( 1,  1) },
+      { position: d.vec2f(-1, -1) },
+      { position: d.vec2f( 1,  1) },
+      { position: d.vec2f(-1,  1) },
+    ])
+    .$usage("vertex");
+
+  const skyBindGroup = root.createBindGroup(skyLayout, { camera: cameraBuffer });
+
+  const skyPipeline = root.createRenderPipeline({
+    attribs: skyVertexLayout.attrib,
+    vertex: skyVertex,
+    fragment: skyFragment,
+    targets: { format: presentationFormat },
+    depthStencil: {
+      format: "depth24plus",
+      depthWriteEnabled: false,
+      depthCompare: "less-equal",
+    },
+    multisample: { count: 4 },
+  });
+
+
+  return {
+    draw(msaaTexture, depthTexture, context) {
+      skyPipeline
+        .withColorAttachment({
+          view: msaaTexture,
+          resolveTarget: context,
+          loadOp: "clear",
+          clearValue: [0, 0, 0, 1],
+        })
+        .withDepthStencilAttachment({
+          view: depthTexture,
+          depthClearValue: 1,
+          depthLoadOp: "clear",
+          depthStoreOp: "store",
+        })
+        .with(skyVertexLayout, skyBuffer)
+        .with(skyBindGroup)
+        .draw(6);
+    },
+  };
+
+}
