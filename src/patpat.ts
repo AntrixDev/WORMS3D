@@ -7,13 +7,15 @@ const finishDelay = 0.7;
 interface PatDeps {
   gsm: GameStateMachine;
   camera: ReturnType<typeof createGameCamera>;
+  canvas: HTMLCanvasElement;
 }
 
-export function createPatSystem({ gsm, camera }: PatDeps) {
+export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
   let active = false;
   let finishing = false;
   let timeLeft = 0;
   let finishTimer = 0;
+  let clicks=0;
 
   const overlay = document.createElement("div");
   overlay.id = "patOverlay";
@@ -22,10 +24,12 @@ export function createPatSystem({ gsm, camera }: PatDeps) {
   hud.id = "patHud";
   const timeEl = document.createElement("div");
   timeEl.id = "patTime";
+  const countEl = document.createElement("div");
+  countEl.id = "patCount";
   const hintEl = document.createElement("div");
   hintEl.id = "patHint";
   hintEl.textContent = "SPAM LEFT-CLICK";
-  hud.append(timeEl, hintEl);
+  hud.append(timeEl, countEl, hintEl);
 
   overlay.append(hud);
   document.body.appendChild(overlay);
@@ -34,8 +38,23 @@ export function createPatSystem({ gsm, camera }: PatDeps) {
     return gsm.state.players[gsm.state.currentPlayerIndex];
   }
 
+  function registerClick() {
+    if(!active) return;
+
+    clicks += 1;
+    gsm.applyPatHeal(1);
+  }
+
+  window.addEventListener("mousedown", (e) => {
+    if(e.button !== 0) return;
+    if(!active) return;
+    if(document.pointerLockElement !== canvas) return;
+    registerClick();
+  });
+
   function updateOverlay() {
     timeEl.textContent = Math.max(0, timeLeft).toFixed(1);
+    countEl.textContent = `${clicks} ${clicks === 1 ? "PAT" : "PATS"}`;
   }
 
   return {
@@ -46,6 +65,7 @@ export function createPatSystem({ gsm, camera }: PatDeps) {
       finishing = false;
       timeLeft = patDur;
       finishTimer = 0;
+      clicks=0;
       camera.setPatTarget(activePlayer());
       overlay.classList.add("on");
       updateOverlay();
