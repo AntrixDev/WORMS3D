@@ -54,9 +54,14 @@ export function createGameCamera(
     height: 1,
   };
 
-  let mode: "intro" | "third-person" | "first-person" | "winner" = "intro";
+  let mode: "intro" | "third-person" | "first-person" | "winner" | "pat" = "intro";
   let introPos = new Float32Array([0, arenaFloorY, 0]);
   let eyePos = new Float32Array([0, arenaFloorY, 0]);
+
+  let patFwd = m.vec3.create(0, 0, -1);
+  const patDistance = 2.7;
+  const patCamHeight = 0.5;
+  const patLookHeight=0.2;
 
   const winnerTarget = new Float32Array([0, arenaFloorY, 0]);
   const winnerUp = new Float32Array([0, 1, 0]);
@@ -231,6 +236,28 @@ export function createGameCamera(
       eyePos[2] = introPos[2];
 
       patchCamera();
+    }else if(mode === "pat"){
+      const up = baseUp;
+      const cx = tpc.targetPos[0] + patFwd[0] * patDistance + up[0] * patCamHeight;
+      const cy = tpc.targetPos[1] + patFwd[1] * patDistance + up[1] * patCamHeight;
+      const cz = tpc.targetPos[2] + patFwd[2] * patDistance + up[2] * patCamHeight;
+
+      m.mat4.lookAt(
+        [cx, cy, cz],
+        [
+          tpc.targetPos[0] + up[0] * patLookHeight,
+          tpc.targetPos[1] + up[1] * patLookHeight,
+          tpc.targetPos[2] + up[2] * patLookHeight,
+        ],
+        up,
+        viewMat,
+      );
+
+
+      eyePos[0] = cx;
+      eyePos[1] = cy;
+      eyePos[2] = cz;
+      patchCamera();
     }
   }
 
@@ -238,6 +265,7 @@ export function createGameCamera(
 
  window.addEventListener("mousemove", (e) => {
     if (document.pointerLockElement !== canvas) return;
+    if (mode === "pat") return;
     tpc.yaw   -= e.movementX * 0.003;
     tpc.pitch += e.movementY * 0.003;
     tpc.pitch  = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, tpc.pitch));
@@ -347,6 +375,34 @@ export function createGameCamera(
       mode = "third-person";
       updateView();
     },
+    setPatTarget(player: PlayerState) {
+      tpc.targetPos[0] = player.posX;
+      tpc.targetPos[1] = player.posY;
+      tpc.targetPos[2] = player.posZ;
+
+      const dirX= Math.sin(tpc.yaw);
+      const dirZ = Math.cos(tpc.yaw);
+      const gx = dirX * baseRight[0] + dirZ * baseFwd[0];
+      const gy = dirX * baseRight[1] + dirZ * baseFwd[1];
+      const gz = dirX * baseRight[2] + dirZ*baseFwd[2];
+      patFwd = m.vec3.create(-gx, -gy, -gz);
+
+      mode = "pat";
+      updateView();
+    },
+
+    projectToScreen(x: number, y: number, z: number): [number, number] | null {
+      const e = viewProjMat;
+      const w = e[3] * x+ e[7] * y + e[11] * z + e[15];
+      if (w <= 1e-6) return null;
+      const cx = e[0]*x + e[4]*y + e[8]*z + e[12];
+      const cy = e[1]*x + e[5]*y + e[9]*z + e[13];
+
+      return [
+        ((cx / w) * 0.5 + 0.5) * canvas.clientWidth,
+        (1 - ((cy / w) * 0.5 + 0.5)) * canvas.clientHeight,
+      ];
+    },
     updatePlayerPos(x: number, y: number, z: number) {
       tpc.targetPos[0] = x;
       tpc.targetPos[1] = y;
@@ -387,6 +443,7 @@ export function createGameCamera(
       return transition.active;
     },
     getForwardDir(): m.Vec3 {
+      if(mode === "pat") return m.vec3.create(patFwd[0], patFwd[1], patFwd[2]);
       const dirX = Math.sin(tpc.yaw);
       const dirZ = Math.cos(tpc.yaw);
       const gx = dirX * baseRight[0] + dirZ * baseFwd[0];
