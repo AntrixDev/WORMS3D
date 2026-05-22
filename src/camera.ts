@@ -431,6 +431,14 @@ export function createGameCamera(
       return [eyePos[0], eyePos[1], eyePos[2]];
     },
 
+    getViewRight(): [number, number, number] {
+      return [viewMat[0], viewMat[4], viewMat[8]];
+    },
+
+    getViewUp(): [number, number, number]{
+      return [viewMat[1], viewMat[5], viewMat[9]];
+    },
+
     setWeaponAim(on: boolean) {
       if (mode !== "third-person" && mode !== "first-person") return;
       const target = on ? "first-person" : "third-person";
