@@ -9,13 +9,16 @@ import { createWeaponSystem } from "./weapons";
 import { createConfetti } from "./confetti";
 import { forEach } from "@loaders.gl/core";
 import { GameStateMachine } from "./gameState";
-import type { Weapon } from "./gameState";
+import type { Weapon, Tool } from "./gameState";
+import { createPatSystem } from "./patpat";
 import { GameUI } from "./ui/gameUI";
 import { createMovementController, fallReset } from "./movement"
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GravityController, lookDirFromYawPitch } from "./gravity";
 import { hexToRgb } from "./colors";
+import { createExplosionSystem } from "./explosion";
+import { lightingLayout, shadeWithExplosions } from "./lighting";
 
 interface Player{
   username: string
@@ -64,6 +67,12 @@ export async function startGame(playerData: Player[]) {
   const cubeBuffer = createCubeBuffer(root);
   const mapCtl = createMapController(root);
   const instanceBuffer = mapCtl.buffer;
+
+  const explosion = createExplosionSystem(root, cameraBuffer, presentationFormat);
+  const lightingBindGroup = root.createBindGroup(lightingLayout, {
+    explosionLights: explosion.lightsBuffer,
+    occupancy: mapCtl.occupancyBuffer,
+  });
 
   const wallGridBuffer = root
     .createBuffer(
@@ -212,8 +221,9 @@ export async function startGame(playerData: Player[]) {
       outlineCoverage(t3, i.edgeFlags, g)
     ) * d.f32(0.25);
 
-    const lineColor = std.mul(color, d.f32(0.18));
-    const finalColor = std.mix(color, lineColor, cov);
+    const litColor = shadeWithExplosions(color, i.worldPos, i.faceNormal);
+    const lineColor = std.mul(litColor, d.f32(0.18));
+    const finalColor = std.mix(litColor, lineColor, cov);
 
     return d.vec4f(finalColor, d.f32(1));
   });
@@ -269,6 +279,7 @@ export async function startGame(playerData: Player[]) {
 
     window.addEventListener("keydown", (e) => {
     if (e.code === "KeyG") {
+      if (gsm.state.patActive) return;
       const activeIdx = gsm.state.currentPlayerIndex;
       const lookDir = gameCam.getForwardDir();
       const changed = gravity.trySwap(activeIdx, lookDir);
@@ -286,7 +297,7 @@ export async function startGame(playerData: Player[]) {
   document.body.appendChild(uiRoot);
 
   const reactRoot = createRoot(uiRoot);
-  const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players, gravity);
+  const slime = await createSlimePipeline(root, cameraBuffer, presentationFormat, gsm.state.players, gravity, lightingBindGroup);
   const weapons = await createWeaponSystem(root, cameraBuffer, presentationFormat, {
     gsm,
     camera: gameCam,
@@ -294,9 +305,12 @@ export async function startGame(playerData: Player[]) {
     map: mapCtl,
     canvas,
     physics,
+    explode: (x, y, z) => explosion.spawn(x, y, z),
   });
 
   const confetti = createConfetti(root, canvas, presentationFormat);
+
+  const pat = createPatSystem({ gsm, camera: gameCam, canvas });
 
   const crosshairEl = document.getElementById("lockedCoursor")!;
   const strengthFillEl = document.getElementById("strengthFill") as HTMLDivElement;
@@ -321,6 +335,10 @@ export async function startGame(playerData: Player[]) {
         onSkipIntro: () => gsm.skipIntro(),
         onSelectWeapon: (w: Weapon) => {
           gsm.selectWeapon(w);
+          canvas.requestPointerLock();
+        },
+        onSelectTool: (_t: Tool) => {
+          pat.start();
           canvas.requestPointerLock();
         },
         onToggleInventory: () => {
@@ -378,6 +396,7 @@ export async function startGame(playerData: Player[]) {
       })
       .with(vertexLayout, cubeBuffer)
       .with(cubeBindGroup)
+      .with(lightingBindGroup)
       .draw(36, mapCtl.count);
   }
 
@@ -389,17 +408,22 @@ export async function startGame(playerData: Player[]) {
 
     const state = gsm.state;
 
-    const canMove = state.phase === "playing" && document.pointerLockElement === canvas;
-    
+    const canMove = state.phase === "playing" && !state.patActive && document.pointerLockElement === canvas;
+
     gameCam.tick(dt);
+    pat.update(dt);
 
     if (state.phase === "winner") {
       crosshairEl.classList.remove("crosshair");
+      crosshairEl.classList.remove("charging");
       strengthFillEl.style.height = "0%";
       confetti.update(dt);
+      explosion.update(dt);
+      explosion.setCameraBasis(gameCam.getViewRight(), gameCam.getViewUp());
       drawCubes();
       slime.drawOpaque(msaaTexture, depthTexture, context, -1);
       slime.drawAlpha(msaaTexture, depthTexture, context, -1, gameCam.getEyePos());
+      explosion.draw(msaaTexture, depthTexture, context);
       confetti.draw(msaaTexture, depthTexture, context);
       requestAnimationFrame(frame);
       return;
@@ -430,7 +454,7 @@ export async function startGame(playerData: Player[]) {
       const isActive = p.index === state.currentPlayerIndex;
 
       if(isActive){
-        p.yaw = gameCam.getYaw();
+        if(!state.patActive) p.yaw = gameCam.getYaw();
         gameCam.updatePlayerPos(nx, ny, nz);
       }
 
@@ -470,18 +494,24 @@ export async function startGame(playerData: Player[]) {
       const gd = visual.currentGd;
       const fwd = visual.currentFwd;
 
-      slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number]);
+      const vScale = isActive && state.patActive ? pat.getVerticalScale() : 1;
+
+      slime.updatePlayerPos( p.index, nx, ny, nz, [fwd[0], fwd[1], fwd[2]] as [number, number, number], [gd[0], gd[1], gd[2]] as [number, number, number], vScale);
     }
 
-    if (state.phase === "playing") {
+    if (state.phase === "playing" && !state.patActive) {
       gameCam.setWeaponAim(!!state.selectedWeapon && !state.inventoryOpen);
     }
 
     weapons.update(dt);
+    explosion.update(dt);
+    explosion.setCameraBasis(gameCam.getViewRight(), gameCam.getViewUp());
 
     const ws = weapons.getUIState();
+    crosshairEl.style.display = state.patActive ? "none" : "";
     crosshairEl.classList.toggle("crosshair", ws.weaponSelected);
-    strengthFillEl.style.height = ws.weaponSelected ? `${Math.max(0, Math.min(1, ws.charge)) * 100}%` : "0%";
+    crosshairEl.classList.toggle("charging", ws.showStrength);
+    strengthFillEl.style.height = ws.showStrength ? `${Math.max(0, Math.min(1, ws.charge)) * 100}%` : "0%";
 
     const skipIndex = gameCam.getMode() === "first-person" ? state.currentPlayerIndex : -1;
 
@@ -489,6 +519,7 @@ export async function startGame(playerData: Player[]) {
     slime.drawOpaque(msaaTexture, depthTexture, context, skipIndex);
     weapons.draw(msaaTexture, depthTexture, context);
     slime.drawAlpha(msaaTexture, depthTexture, context, skipIndex, gameCam.getEyePos());
+    explosion.draw(msaaTexture, depthTexture, context);
 
     requestAnimationFrame(frame);
   }
