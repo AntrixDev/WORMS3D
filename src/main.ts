@@ -15,12 +15,23 @@ import { createMovementController, fallReset } from "./movement"
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { GravityController, lookDirFromYawPitch } from "./gravity";
+import { hexToRgb } from "./colors";
 
 interface Player{
   username: string
   characterIndex?: number;
   colorIndex?: number;
 }
+
+const wallGradientGrid = [
+  "#0E1737", "#1F2543", "#252A44", "#2D2843", "#2E1F40", "#221533", "#1F112F",
+  "#161F3C", "#1B2240", "#202642", "#292441", "#291A3A", "#241534", "#251434",
+  "#192441", "#1A2341", "#1D2542", "#262240", "#291939", "#291737", "#2E1939",
+  "#1D2B46", "#212F49", "#28354E", "#3D344D", "#452846", "#422342", "#3E1F3F",
+  "#23314C", "#2F4056", "#3F4F60", "#5F4F61", "#664059", "#613753", "#4C2849",
+  "#283B52", "#3B4F60", "#4F5E69", "#655B68", "#6A485E", "#75455C", "#6C3A54",
+  "#2F455A", "#4E626D", "#626C71", "#6C626C", "#5F4B5F", "#7D5063", "#80455E",
+];
 
 export async function startGame(playerData: Player[]) {
 
@@ -54,19 +65,31 @@ export async function startGame(playerData: Player[]) {
   const mapCtl = createMapController(root);
   const instanceBuffer = mapCtl.buffer;
 
+  const wallGridBuffer = root
+    .createBuffer(
+      d.arrayOf(d.vec4f, 49),
+      wallGradientGrid.map((hex) => {
+        const [r, g, b] = hexToRgb(hex);
+        return d.vec4f(r / 255, g / 255, b / 255, 1);
+      }),
+    )
+    .$usage("storage");
+
   const cubeLayout = tgpu.bindGroupLayout({
     camera: { uniform: Camera },
     instance: {storage: d.arrayOf(cubeInstance)},
+    wallGrid: { storage: d.arrayOf(d.vec4f) },
   });
 
   const cubeBindGroup = root.createBindGroup(cubeLayout, {
     camera: cameraBuffer,
-    instance: instanceBuffer
+    instance: instanceBuffer,
+    wallGrid: wallGridBuffer,
   });
 
 
-  const gradMinY = -(arenaInnerSize / 2) - 0.5;
-  const gradMaxY = arenaInnerSize - (arenaInnerSize / 2) -0.5;
+  const gradMinXZ = -(arenaInnerSize / 2) + 0.5;
+  const gradMaxXZ = (arenaInnerSize / 2) - 1.5;
 
   const cubeVertex = tgpu.vertexFn({
     in: {
@@ -142,27 +165,34 @@ export async function startGame(playerData: Player[]) {
     },
     out: d.vec4f,
   })((i) => {
-    const t = std.clamp(
-      (d.f32(gradMaxY) - i.worldPos.y) / d.f32(gradMaxY - gradMinY),
-      d.f32(0),
-      d.f32(1),
-    );
-    const s = t * d.f32(6);
+    const span = d.f32(gradMaxXZ - gradMinXZ);
+    const gx = std.clamp((i.worldPos.x - d.f32(gradMinXZ)) / span, d.f32(0), d.f32(1));
+    const gz = std.clamp((i.worldPos.z - d.f32(gradMinXZ)) / span, d.f32(0), d.f32(1));
 
-    const c0 = d.vec3f(196 / 255, 110 / 255, 116 / 255);
-    const c1 = d.vec3f(142 / 255,  97 / 255, 117 / 255);
-    const c2 = d.vec3f(100 / 255,  66 / 255,  99 / 255);
-    const c3 = d.vec3f( 86 / 255,  71 / 255, 102 / 255);
-    const c4 = d.vec3f( 77 / 255,  81 / 255, 110 / 255);
-    const c5 = d.vec3f( 68 / 255,  90 / 255, 114 / 255);
-    const c6 = d.vec3f( 46 / 255,  77 / 255, 106 / 255);
-    let color = d.vec3f(c0);
-    color = std.mix(color, c1, std.clamp(s - d.f32(0), d.f32(0), d.f32(1)));
-    color = std.mix(color, c2, std.clamp(s - d.f32(1), d.f32(0), d.f32(1)));
-    color = std.mix(color, c3, std.clamp(s - d.f32(2), d.f32(0), d.f32(1)));
-    color = std.mix(color, c4, std.clamp(s - d.f32(3), d.f32(0), d.f32(1)));
-    color = std.mix(color, c5, std.clamp(s - d.f32(4), d.f32(0), d.f32(1)));
-    color = std.mix(color, c6, std.clamp(s - d.f32(5), d.f32(0), d.f32(1)));
+    const fx = gx * d.f32(6);
+    const fz = gz * d.f32(6);
+    const ix0 = d.u32(std.floor(fx));
+    const iz0 = d.u32(std.floor(fz));
+    const ix1 = std.min(ix0 + d.u32(1), d.u32(6));
+    const iz1 = std.min(iz0 + d.u32(1), d.u32(6));
+    const tx = std.fract(fx);
+    const tz = std.fract(fz);
+
+    const row0 = iz0 * d.u32(7);
+    const row1 = iz1 * d.u32(7);
+    const color = std.mix(
+      std.mix(
+        cubeLayout.$.wallGrid[row0 + ix0].xyz,
+        cubeLayout.$.wallGrid[row0 + ix1].xyz,
+        tx,
+      ),
+      std.mix(
+        cubeLayout.$.wallGrid[row1 + ix0].xyz,
+        cubeLayout.$.wallGrid[row1 + ix1].xyz,
+        tx,
+      ),
+      tz,
+    );
 
     const duvdx = std.dpdx(i.faceUv);
     const duvdy = std.dpdy(i.faceUv);
