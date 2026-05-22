@@ -4,6 +4,7 @@ import type { createGameCamera } from "./camera";
 const patDur = 5;
 const patCycle = 0.4;
 const handFrames = 5;
+const squishDepth = 0.22;
 const handLinger = 0.5;
 const handFade = 0.18;
 const finishDelay = 0.7;
@@ -23,6 +24,7 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
   let clicks = 0;
   let patPhase= 0;
   let handTimer = 0;
+  let squish = 1;
   let topX = 0;
   let topY = 0;
 
@@ -50,6 +52,16 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
     return gsm.state.players[gsm.state.currentPlayerIndex];
   }
 
+  function spawnFloat() {
+    const f = document.createElement("div");
+    f.className = "patFloat";
+    f.textContent = "+1";
+    f.style.left = `${topX + (Math.random() * 44 - 22)}px`;
+    f.style.top = `${topY}px`;
+    overlay.appendChild(f);
+    setTimeout(() => f.remove(), 720);
+  }
+
   function registerClick() {
     if(!active) return;
 
@@ -57,6 +69,7 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
     gsm.applyPatHeal(1);
     if (handTimer <= 0.02) patPhase = 0;
     handTimer = handLinger;
+    spawnFloat();
   }
 
   window.addEventListener("mousedown", (e) => {
@@ -114,6 +127,7 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
       clicks=0;
       patPhase = 0;
       handTimer = 0;
+      squish = 1;
       camera.setPatTarget(activePlayer());
       overlay.classList.add("on");
       updateOverlay(0, 0);
@@ -123,9 +137,14 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
       return active || finishing;
     },
 
+    getVerticalScale() {
+      return squish;
+    },
+
     update(dt: number) {
       if (!active && !finishing) {
         overlay.classList.remove("on");
+        squish = 1;
         return;
       }
 
@@ -134,6 +153,7 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
 
       const handAlpha = Math.max(0, Math.min(1, handTimer/handFade));
       const cyc = (patPhase / patCycle) % 1;
+      squish = 1 - squishDepth * Math.sin(Math.PI * cyc) * handAlpha;
 
       if (active) {
         timeLeft -= dt;
@@ -147,6 +167,7 @@ export function createPatSystem({ gsm, camera, canvas }: PatDeps) {
         finishTimer -= dt;
         if (finishTimer <= 0) {
           finishing = false;
+          squish = 1;
           overlay.classList.remove("on");
           gsm.endPatSession();
           return;
