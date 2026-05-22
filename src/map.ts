@@ -63,6 +63,9 @@ export const arenaWallMax = innerOrigin + arenaInnerSize -2;
 export const arenaFloorY = innerOrigin + 0.5;
 export const arenaCeilY = innerOrigin + arenaInnerSize -2;
 
+export const occupancyGridMin = -16;
+export const occupancyGridDim = 32;
+
 
 for(let i=0; i<arenaLayers; i++){
     const size = arenaInnerSize+i*2;
@@ -266,8 +269,23 @@ function refreshOutlines(list: d.InferInput<typeof cubeInstance>[]) {
 
 refreshOutlines(instanceArray);
 
+function buildOccupancy(list: d.InferInput<typeof cubeInstance>[]): number[] {
+    const dim = occupancyGridDim;
+    const occ = new Array<number>(dim * dim * dim).fill(0);
+    for (const inst of list) {
+        const x = Math.round(inst.model[12]) - occupancyGridMin;
+        const y = Math.round(inst.model[13]) - occupancyGridMin;
+        const z = Math.round(inst.model[14])- occupancyGridMin;
+        if (x >= 0 && x < dim && y >= 0 && y < dim && z >= 0 && z < dim) {
+            occ[(z * dim + y)* dim + x] = 1;
+        }
+    }
+    return occ;
+}
+
 export interface MapController {
     readonly buffer: any;
+    readonly occupancyBuffer: any;
     readonly count: number;
     destroySphere(cx: number, cy: number, cz: number, radius: number): void;
 }
@@ -287,8 +305,13 @@ export function createMapController(root: any): MapController {
         .createBuffer(d.arrayOf(cubeInstance, capacity), padded(live))
         .$usage("storage");
 
+    const occupancyBuffer = root
+        .createBuffer(d.arrayOf(d.u32, occupancyGridDim ** 3), buildOccupancy(live))
+        .$usage("storage");
+
     return {
         get buffer() { return buffer; },
+        get occupancyBuffer() { return occupancyBuffer; },
         get count() { return live.length; },
 
         destroySphere(cx: number, cy: number, cz: number, radius: number) {
@@ -302,6 +325,7 @@ export function createMapController(root: any): MapController {
             rebuildActiveBlocks(live);
             refreshOutlines(live);
             buffer.write(padded(live));
+            occupancyBuffer.write(buildOccupancy(live));
         },
     };
 }
