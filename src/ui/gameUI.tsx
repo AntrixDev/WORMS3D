@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { GameState, PlayerState, Weapon, KillLogEntry } from "../gameState";
+import type { GameState, PlayerState, Weapon, Tool, KillLogEntry } from "../gameState";
 import "./gameUI.css"
 import { turnDuration } from "../gameState"
 import Button from "./components/button"
@@ -111,9 +111,10 @@ function PlayerList({ players, currentPlayerIndex }: { players: PlayerState[]; c
 }
 
 
-function InventoryPanel({ inventory, selected, weaponUsed, onSelect }: { inventory: Weapon[]; selected: Weapon | null; weaponUsed: boolean; onSelect: (w: Weapon) => void }){
+function InventoryPanel({ inventory, tools, selected, weaponUsed, onSelect, onSelectTool }: { inventory: Weapon[]; tools: Tool[]; selected: Weapon | null; weaponUsed: boolean; onSelect: (w: Weapon) => void; onSelectTool: (t: Tool) => void }){
   const [activeTab, setActiveTab] = useState<"weapons" | "tools">("weapons");
-  const items = activeTab === "weapons" ? inventory : [];
+  const showingTools = activeTab === "tools";
+  const items: (Weapon | Tool)[] = showingTools ? tools : inventory;
   const locked = selected !== null || weaponUsed;
 
   return (
@@ -135,13 +136,17 @@ function InventoryPanel({ inventory, selected, weaponUsed, onSelect }: { invento
         ) : (
           <div className="inventory-grid">
             {items.map((item) => {
-              const isSelected = selected?.id === item.id;
+              const isSelected = !showingTools && selected?.id === item.id;
               const disabled= locked && !isSelected;
               return (
                 <div className="weapon-slot-wrap" key={item.id}>
                   <button
                     className={`weapon-slot ${isSelected ? "weapon-slot--selected" : ""} ${disabled ? "weapon-slot--disabled" : ""}`}
-                    onClick={() => { if (!disabled) onSelect(item); }}
+                    onClick={() => {
+                      if (disabled) return;
+                      if (showingTools) onSelectTool(item as Tool);
+                      else onSelect(item as Weapon);
+                    }}
                     style={ isSelected ? { borderColor: primaryColor } : {}}
                     disabled={disabled}
                   >
@@ -434,7 +439,7 @@ function KillFeed({ killLog, players }: { killLog: KillLogEntry[]; players: Play
 
 const deathScreenTotal = 10;
 
-export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInventory, onDismissDeathScreen, onBackToMenu }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; onBackToMenu: () => void; }) {
+export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onSelectTool, onToggleInventory, onDismissDeathScreen, onBackToMenu }: { gameState: GameState; onSkipIntro: () => void; onSelectWeapon: (weapon: Weapon) => void; onSelectTool: (tool: Tool) => void; onToggleInventory: () => void; onDismissDeathScreen: () => void; onBackToMenu: () => void; }) {
   const {
     phase,
     players,
@@ -443,12 +448,14 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
     introTimeLeft,
     selectedWeapon,
     inventory,
+    tools,
     inventoryOpen,
     killLog,
     deathScreenEntry,
     deathScreenTimeLeft,
     winnerIndex,
     weaponUsed,
+    patActive,
   } = gameState;
 
   const currentPlayer = players[currentPlayerIndex];
@@ -511,14 +518,16 @@ export function GameUI({ gameState, onSkipIntro, onSelectWeapon, onToggleInvento
             {inventoryOpen && (
               <InventoryPanel
                 inventory={inventory}
+                tools={tools}
                 selected={selectedWeapon}
                 weaponUsed={weaponUsed}
                 onSelect={onSelectWeapon}
+                onSelectTool={onSelectTool}
               />
             )}
             <TurnUI player={currentPlayer} turnTimeLeft={turnTimeLeft} />
           </div>
-          <WeaponUI selected={selectedWeapon} onOpenInventory={onToggleInventory} />
+          {!patActive && <WeaponUI selected={selectedWeapon} onOpenInventory={onToggleInventory} />}
         </>
       )}
       
