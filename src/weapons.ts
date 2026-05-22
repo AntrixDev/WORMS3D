@@ -87,6 +87,7 @@ interface WeaponDeps {
   map: MapController;
   canvas: HTMLCanvasElement;
   physics: PhysicsController;
+  explode: (x: number, y: number, z: number) => void;
 }
 
 const granadeKnockbackForce = 26;
@@ -114,7 +115,7 @@ export async function createWeaponSystem(
   presentationFormat: GPUTextureFormat,
   deps: WeaponDeps,
 ) {
-  const { gsm, camera, gravity, map, canvas, physics } = deps;
+  const { gsm, camera, gravity, map, canvas, physics, explode } = deps;
 
   const model = await loadGLBModel("/assets/bomb.glb");
 
@@ -395,6 +396,9 @@ export async function createWeaponSystem(
   function detonateRocket(r: Rocket, directHit: number | null) {
     const [x, y, z] = r.pos;
     map.destroySphere(x, y, z, rocketRadiusDESTROY);
+
+    explode(x, y, z);
+
     if (directHit !== null) {
        gsm.killPlayer(directHit, "weapon", r.owner);
     }
@@ -566,6 +570,9 @@ export async function createWeaponSystem(
   function detonate(g: Bomb) {
     const [x, y, z] = g.pos;
     map.destroySphere(x, y, z, explRadius);
+
+    explode(x, y, z);
+    
     gsm.applyExplosionDamage(
       x, y, z,
       explRadius, innerDamage,
@@ -794,6 +801,7 @@ export async function createWeaponSystem(
     getUIState() {
       return {
         weaponSelected: anyWeaponSelectedAndAimed(),
+        showStrength: bombSelectedAndAimed(),
         charge,
       };
     },
