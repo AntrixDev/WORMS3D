@@ -4,6 +4,7 @@ import { Camera } from "./camera";
 import { ModelUniforms } from "./modelSchema";
 import { loadGLBModel } from "./modelLoader";
 import type { PlayerState } from "./gameState";
+import { shadeWithExplosions } from "./lighting";
 
 const physicsRadius = 0.4;
 const targetDiameter = 1.2;
@@ -97,6 +98,7 @@ export async function createSlimePipeline(
   presentationFormat: GPUTextureFormat,
   players: PlayerState[],
   gravityController: import("./gravity").GravityController,
+  lightingBindGroup: any,
 ) {
   const slime = await loadGLBModel("/assets/slime.glb");
 
@@ -223,7 +225,9 @@ export async function createSlimePipeline(
     },
     out: {
       pos: d.builtin.position,
-      color: d.vec4f
+      color:d.vec4f,
+      worldPos: d.vec3f,
+      worldNormal: d.vec3f,
     },
   })((input) => {
     const worldPos = std.mul(
@@ -234,13 +238,29 @@ export async function createSlimePipeline(
       modelLayout.$.camera.projection,
       std.mul(modelLayout.$.camera.view, worldPos)
     );
-    return { pos, color: modelLayout.$.palette[input.materialId] };
+    const worldNormal = std.mul(
+      modelLayout.$.modelUniforms.model,
+      d.vec4f(input.normal, d.f32(0))
+    );
+
+
+    return{
+      pos,
+      color: modelLayout.$.palette[input.materialId],
+      worldPos: worldPos.xyz,
+      worldNormal: worldNormal.xyz,
+    };
   });
 
   const modelFragment = tgpu.fragmentFn({
-    in:  { color: d.vec4f },
+    in: { color: d.vec4f, worldPos: d.vec3f, worldNormal: d.vec3f },
     out: d.vec4f,
-  })((i) => i.color);
+  })((i) => {
+    const normal = std.normalize(i.worldNormal);
+    const lit = shadeWithExplosions(i.color.xyz, i.worldPos, normal);
+
+    return d.vec4f(lit, i.color.w);
+  });
 
   const opaquePipeline = root.createRenderPipeline({
     attribs: { ...modelVertexLayout.attrib },
@@ -321,6 +341,7 @@ export async function createSlimePipeline(
           })
           .with(modelVertexLayout, modelVertexBuffer)
           .with(playerBindGroup[i])
+          .with(lightingBindGroup)
           .withIndexBuffer(opaqueIndexBuffer)
           .drawIndexed(opaqueIndices.length);
       }
@@ -363,6 +384,7 @@ export async function createSlimePipeline(
           })
           .with(modelVertexLayout, modelVertexBuffer)
           .with(playerBindGroup[i])
+          .with(lightingBindGroup)
           .withIndexBuffer(alphaIndexBuffer)
           .drawIndexed(alphaIndices.length);
       }
