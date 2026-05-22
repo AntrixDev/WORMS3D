@@ -17,6 +17,7 @@ function buildModelMat(
   groundOffset: number,
   scale: number,
   gravDown: [number, number, number] =[0, -1, 0],
+  verticalScale: number = 1,
 ) {
   const footX = px + gravDown[0]*physicsRadius;
   const footY = py + gravDown[1]*physicsRadius;
@@ -43,6 +44,7 @@ function buildModelMat(
   const right = m.vec3.normalize(m.vec3.cross(flatFwd, up));
 
   const s = scale;
+  const sv = scale * verticalScale;
   const mat = d.mat4x4f();
   m.mat4.identity(mat);
 
@@ -51,9 +53,9 @@ function buildModelMat(
   mat[2] = -right[2]*s;
   mat[3] = 0;
 
-  mat[4] = up[0]* s;
-  mat[5] = up[1]* s;
-  mat[6] = up[2]* s;
+  mat[4] = up[0]* sv;
+  mat[5] = up[1]* sv;
+  mat[6] = up[2]* sv;
   mat[7] = 0;
 
   mat[8] = flatFwd[0]* s;
@@ -61,9 +63,9 @@ function buildModelMat(
   mat[10] = flatFwd[2]* s;
   mat[11] = 0;
 
-  mat[12] = footX + up[0]*(-groundOffset * s);
-  mat[13] = footY + up[1]*(-groundOffset * s);
-  mat[14] = footZ + up[2]* (-groundOffset * s);
+  mat[12] = footX + up[0]*(-groundOffset * sv);
+  mat[13] = footY + up[1]*(-groundOffset * sv);
+  mat[14] = footZ + up[2]* (-groundOffset * sv);
   mat[15] = 1;
 
   return mat;
@@ -313,9 +315,10 @@ export async function createSlimePipeline(
       pz: number,
       worldFwd: [number, number, number] = [0, 0, 1],
       gravDown: [number, number, number] = [0, -1, 0],
+      verticalScale: number = 1,
     ) {
       if(!playerUniforms[playerIndex]) return;
-      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, worldFwd, groundOffset, scaleFactor, gravDown) });
+      playerUniforms[playerIndex].write({ model: buildModelMat(px, py, pz, worldFwd, groundOffset, scaleFactor, gravDown, verticalScale) });
     },
 
     drawOpaque(
