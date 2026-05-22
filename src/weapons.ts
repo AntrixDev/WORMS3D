@@ -116,7 +116,7 @@ export async function createWeaponSystem(
 ) {
   const { gsm, camera, gravity, map, canvas, physics } = deps;
 
-  const model = await loadGLBModel("./public/assets/bomb.glb");
+  const model = await loadGLBModel("/assets/bomb.glb");
 
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
