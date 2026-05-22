@@ -1,7 +1,7 @@
 import tgpu, { d, std } from "typegpu";
 import { occupancyGridMin, occupancyGridDim } from "./map";
 
-export const MAX_EXPLOSION_LIGHTS = 4;
+export const maxExplosionLights = 4;
 
 export const ExplosionLight = d.struct({
   pos: d.vec3f,
@@ -12,7 +12,7 @@ export const ExplosionLight = d.struct({
 
 export const ExplosionLights = d.struct({
   count: d.u32,
-  lights: d.arrayOf(ExplosionLight, MAX_EXPLOSION_LIGHTS),
+  lights: d.arrayOf(ExplosionLight, maxExplosionLights),
 });
 
 export const lightingLayout = tgpu.bindGroupLayout({
@@ -61,7 +61,7 @@ export const shadeWithExplosions = tgpu.fn([d.vec3f, d.vec3f, d.vec3f], d.vec3f)
   (albedo, worldPos, normal) => {
     let lit = d.vec3f(albedo);
 
-    for (let i = 0; i < MAX_EXPLOSION_LIGHTS; i++) {
+    for (let i = 0; i < maxExplosionLights; i++) {
       if (d.u32(i) >= lightingLayout.$.explosionLights.count) {
         break;
       }

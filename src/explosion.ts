@@ -1,9 +1,14 @@
 import tgpu, { d, std } from "typegpu";
 import { Camera } from "./camera";
+import { ExplosionLights, maxExplosionLights } from "./lighting";
 
 const maxExplosions = 8;
 const lifetime = 0.55;
 const vfxRadius = 4.5;
+const lightRadius = 16;
+const lightPeak = 2.2;
+
+
 const ExplosionInstance = d.struct({
   center: d.vec3f,
   radius: d.f32,
@@ -45,6 +50,21 @@ interface ActiveExplosion {
   seed: number;
 }
 
+function zeroLights() {
+  const lights = [];
+
+  for (let i = 0; i < maxExplosionLights; i++) {
+    lights.push({
+      pos: d.vec3f(0, 0, 0),
+      radius: 0,
+      color: d.vec3f(0, 0, 0),
+      intensity: 0,
+    });
+  }
+  
+  return { count: 0, lights };
+}
+
 export function createExplosionSystem(
   root: any,
   cameraBuffer: any,
@@ -69,6 +89,10 @@ export function createExplosionSystem(
 
   const basisBuffer = root
     .createBuffer(BillboardBasis, { right: d.vec3f(1, 0, 0), up: d.vec3f(0, 1, 0) })
+    .$usage("uniform");
+
+  const lightsBuffer = root
+    .createBuffer(ExplosionLights, zeroLights())
     .$usage("uniform");
 
   const layout = tgpu.bindGroupLayout({
@@ -156,6 +180,10 @@ export function createExplosionSystem(
   const explosions: ActiveExplosion[] = [];
 
   return {
+    get lightsBuffer() {
+      return lightsBuffer;
+    },
+
     spawn(x: number, y: number, z: number) {
       explosions.push({ x, y, z, age: 0, seed: Math.random() * 100 });
       if (explosions.length > maxExplosions) explosions.shift();
@@ -200,6 +228,31 @@ export function createExplosionSystem(
         }
       }
       instanceBuffer.write(instances);
+
+      const count = Math.min(explosions.length, maxExplosionLights);
+      const lights = [];
+
+      for(let i = 0; i < maxExplosionLights; i++){
+        if(i < count){
+          const e = explosions[i];
+          const t = e.age / lifetime;
+          const intensity = lightPeak * (t < 0.14 ? t/0.14 : Math.pow(1 - (t - 0.14) / 0.86, 1.6));
+          lights.push({
+            pos: d.vec3f(e.x, e.y, e.z),
+            radius: lightRadius,
+            color: d.vec3f(1, 0.72, 0.4),
+            intensity: Math.max(0, intensity),
+          });
+        }else{
+          lights.push({
+            pos: d.vec3f(0, 0, 0),
+            radius: 0,
+            color: d.vec3f(0, 0, 0),
+            intensity: 0,
+          });
+        }
+      }
+      lightsBuffer.write({ count, lights });
     },
 
     draw(msaaTexture: any, depthTexture: any, context: any) {
