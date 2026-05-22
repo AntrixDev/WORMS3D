@@ -31,6 +31,13 @@ export interface Weapon {
     description?: string;
 }
 
+export interface Tool {
+    id: number;
+    name: string;
+    icon: string;
+    description?: string;
+}
+
 export type DeathCause = "void" | "weapon" | "unknown";
 
 export interface KillLogEntry {
@@ -52,6 +59,7 @@ export interface GameState {
     introTimeLeft: number;
     selectedWeapon: Weapon | null;
     inventory: Weapon[];
+    tools: Tool[];
     inventoryOpen: boolean;
     cameraMode: "intro" | "thirdPer";
     killLog: KillLogEntry[];
@@ -75,6 +83,10 @@ void arenaFloorY;
 export const defWeapons: Weapon[] = [
     {id: 1, name: "Rocket Launcher", ammo: 2, icon: "🚀", description: "I wonder what can it doo.. launches a rocket obviously"},
     {id: 2, name: "Bomb", ammo: 1, icon: "💣", description: "That's a throw and run bomb. Show them how much strength you got."},
+];
+
+export const defTools: Tool[] = [
+    {id: 101, name: "Pat pat", icon: "🫳", description: "Spam left-click to pat your slime. Every pat heals +1 HP, so don't be afraid to pet that dawg"},
 ];
 
 function randomSpawnCord(): number {
@@ -156,6 +168,7 @@ export function createInitGameState (
         introTimeLeft: introDuration,
         selectedWeapon: null,
         inventory: [...defWeapons.map(w => ({ ...w }))],
+        tools: [...defTools.map(t => ({ ...t }))],
         inventoryOpen: false,
         cameraMode: "intro",
         killLog: [],
@@ -397,6 +410,7 @@ export class GameStateMachine {
         this.state.currentPlayerIndex = next;
         this.state.roundNumber += 1;
         this.state.inventory = [...defWeapons.map(w => ({ ...w }))];
+        this.state.tools = [...defTools.map(t => ({ ...t }))];
 
         this.beginIntro();
         this.onTurnEnd?.();
