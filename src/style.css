@@ -93,7 +93,7 @@ div#strengthBar {
   overflow: hidden;
 }
 
-div#lockedCoursor.crosshair div#strengthBar {
+div#lockedCoursor.charging div#strengthBar {
   display: block;
 }
 
@@ -106,5 +106,96 @@ div#strengthFill {
   border-radius: 4px;
   background: linear-gradient(to top, #ffd200 0%, #ff7a00 55%, #ff1a00 100%);
   transition: height 0.06s linear;
+}
+
+div#patOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  display: none;
+}
+
+div#patOverlay.on {
+  display: block;
+}
+
+div#patHand {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  background-image: url("/public/assets/handFrames.png");
+  background-repeat: no-repeat;
+  background-size: 500% 100%;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.45));
+}
+
+div#patHud {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 26px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  font-family: system-ui, sans-serif;
+  white-space: nowrap;
+}
+
+div#patTime {
+  font-size: 40px;
+  font-weight: 900;
+  color: #e23b7a;
+  min-width: 86px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+div#patCount {
+  font-size: 22px;
+  font-weight: 900;
+  color: #141414;
+  letter-spacing: 0.03em;
+  padding-left: 18px;
+  border-left: 2px solid rgba(0, 0, 0, 0.12);
+}
+
+div#patHint {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: rgba(0, 0, 0, 0.42);
+}
+
+div.patFloat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: 900;
+  color: #ff4f96;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), 0 0 3px #fff;
+  pointer-events: none;
+  animation: patFloatRise 0.72s ease-out forwards;
+}
+
+@keyframes patFloatRise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%)  scale(0.5);
+  }
+  18% {
+    opacity: 1; transform:
+    translate(-50%, -95%)  scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -240%) scale(1);
+  }
 }
 
