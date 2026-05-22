@@ -67,9 +67,12 @@ export interface GameState {
     deathScreenTimeLeft: number;
     winnerIndex: number | null;
     weaponUsed: boolean;
+    patActive: boolean;
+    patClicks: number;
 }
 
 export const turnDuration = 50;
+export const maxHp =100;
 const introDuration = 5;
 const deathScreenDuration = 10;
 
@@ -86,7 +89,7 @@ export const defWeapons: Weapon[] = [
 ];
 
 export const defTools: Tool[] = [
-    {id: 101, name: "Pat pat", icon: "🫳", description: "Spam left-click to pat your slime. Every pat heals +1 HP, so don't be afraid to pet that dawg"},
+    {id: 101, name: "Pat pat", icon: "🫳", description: "No moving for 5 seconds. Spam left-click to pat your slime. Every pat heals +1 HP."},
 ];
 
 function randomSpawnCord(): number {
@@ -176,6 +179,8 @@ export function createInitGameState (
         deathScreenTimeLeft: 0,
         winnerIndex: null,
         weaponUsed: false,
+        patActive: false,
+        patClicks: 0,
     }
 }
 
@@ -386,6 +391,38 @@ export class GameStateMachine {
         }, 1800);
     }
 
+    beginPatSession(): boolean {
+        if(this.state.phase !== "playing" || this.state.weaponUsed) return false;
+        this.state.weaponUsed = true;
+        this.state.patActive = true;
+        this.state.patClicks=0;
+        this.state.selectedWeapon = null;
+        this.state.inventoryOpen = false;
+
+        if(this.turnTimer){
+            clearInterval(this.turnTimer);
+            this.turnTimer = null;
+        }
+
+        this.emit();
+        return true;
+    }
+
+    applyPatHeal(amount: number){
+        const p = this.currentPlayer;
+
+        if(!p || !p.alive || !this.state.patActive) return;
+        p.hp = Math.min(maxHp, p.hp + amount);
+        this.state.patClicks += 1;
+        this.emit();
+    }
+
+    endPatSession() {
+        if (!this.state.patActive) return;
+        this.state.patActive = false;
+        this.advanceTurn();
+    }
+
     closeInventory() {
         this.state.inventoryOpen = false;
         this.emit();
@@ -411,6 +448,8 @@ export class GameStateMachine {
         this.state.roundNumber += 1;
         this.state.inventory = [...defWeapons.map(w => ({ ...w }))];
         this.state.tools = [...defTools.map(t => ({ ...t }))];
+        this.state.patActive = false;
+        this.state.patClicks = 0;
 
         this.beginIntro();
         this.onTurnEnd?.();
